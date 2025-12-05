@@ -117,12 +117,13 @@ class GameCard(QFrame):
         else:
             self.image_label.setText("🎮")
         
-        # Botón de favorito (aparece en ambos modos, pero mejor visible en grid)
+        # Botón de favorito (aparece solo en hover)
         self.favorite_btn = QPushButton('⭐' if self.is_favorite else '☆')
         self.favorite_btn.setFixedSize(40, 40)
+        self.favorite_btn.setVisible(False)  # Oculto por defecto
         self.favorite_btn.setStyleSheet("""
             QPushButton {
-                background-color: rgba(0, 0, 0, 180);
+                background-color: rgba(0, 0, 0, 200);
                 border: none;
                 border-radius: 20px;
                 font-size: 20px;
@@ -130,10 +131,10 @@ class GameCard(QFrame):
                 font-weight: bold;
             }
             QPushButton:hover {
-                background-color: rgba(0, 0, 0, 220);
+                background-color: rgba(0, 0, 0, 240);
             }
             QPushButton:pressed {
-                background-color: rgba(0, 0, 0, 150);
+                background-color: rgba(0, 0, 0, 180);
             }
         """)
         def toggle_favorite():
@@ -446,6 +447,7 @@ class GameCard(QFrame):
             self.parent_window.delete_game(self.game)
 
     def enterEvent(self, event):
+        self.favorite_btn.setVisible(True)  # Mostrar botón de favorito
         if self.list_mode:
             return super().enterEvent(event)
         self._orig_rect = self.geometry()
@@ -461,6 +463,7 @@ class GameCard(QFrame):
         super().enterEvent(event)
 
     def leaveEvent(self, event):
+        self.favorite_btn.setVisible(False)  # Ocultar botón de favorito
         if self.list_mode:
             return super().leaveEvent(event)
         if self._orig_rect:
