@@ -2,7 +2,15 @@
 
 A modern desktop application for Windows that centralizes your entire game collection with automatic import from Steam and Epic Games Store, featuring a sleek borderless interface and extensive customization options.
 
-## ✨ Key Features
+---
+
+## 📚 Documentation
+
+- **[🗺️ v1.1 Roadmap](ROADMAP.md)** - Upcoming features and development plans
+- **[📜 License](LICENSE)** - MIT License
+- **[🔄 Changelog](CHANGELOG.md)** - Version history and updates
+
+---
 
 ### 📚 Game Management
 - **Automatic Steam Import** - Detects and imports all your Steam games with proper metadata
