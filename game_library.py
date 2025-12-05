@@ -234,7 +234,14 @@ class GameCard(QFrame):
         self.fade_animation.setEndValue(1.0)
         self.fade_animation.setEasingCurve(QEasingCurve.OutCubic)
         # Remover el efecto cuando termine para no interferir con hover
-        self.fade_animation.finished.connect(lambda: self.setGraphicsEffect(None))
+        # Verificar si el widget aún existe antes de remover el efecto
+        def remove_effect():
+            try:
+                if self and self.isValid() if hasattr(self, 'isValid') else True:
+                    self.setGraphicsEffect(None)
+            except RuntimeError:
+                pass  # Widget fue eliminado
+        self.fade_animation.finished.connect(remove_effect)
         # Iniciar con delay para efecto secuencial
         from PyQt5.QtCore import QTimer
         QTimer.singleShot(self.animation_delay, self.fade_animation.start)
