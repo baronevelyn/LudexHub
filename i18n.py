@@ -59,6 +59,10 @@ TRANSLATIONS = {
         'language_es': 'Español',
         'language_en': 'English',
         'label_auto_start': 'Abrir al encender el PC',
+        'label_process_priority': 'Prioridad de proceso:',
+        'priority_high': 'Alta',
+        'priority_normal': 'Normal',
+        'priority_low': 'Baja',
         
         # Colores personalizables
         'label_general_colors': 'Colores Generales',
@@ -168,6 +172,10 @@ TRANSLATIONS = {
         'language_es': 'Español',
         'language_en': 'English',
         'label_auto_start': 'Open when PC starts',
+        'label_process_priority': 'Process priority:',
+        'priority_high': 'High',
+        'priority_normal': 'Normal',
+        'priority_low': 'Low',
         
         # Colores personalizables
         'label_general_colors': 'General Colors',

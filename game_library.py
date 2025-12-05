@@ -927,6 +927,48 @@ class ColorPickerDialog(QDialog):
         startup_layout.addStretch()
         layout.addWidget(startup_container)
         
+        # Selector de prioridad de proceso
+        priority_container = QWidget()
+        priority_layout = QHBoxLayout(priority_container)
+        priority_layout.setContentsMargins(0,0,0,0)
+        priority_layout.setSpacing(10)
+        priority_layout.addWidget(QLabel(t('label_process_priority')))
+        self.priority_combo = QComboBox()
+        self.priority_combo.setStyleSheet("""
+            QComboBox { background:#252d3d; border:2px solid #2d3748; border-radius:8px; padding:8px; color:#e8eaed; min-width:150px; }
+            QComboBox:hover { border-color:#667eea; }
+            QComboBox::drop-down { border:none; }
+            QComboBox QAbstractItemView { background:#252d3d; border:1px solid #2d3748; color:#e8eaed; selection-background-color:#667eea; }
+        """)
+        self.priority_combo.addItems([t('priority_high'), t('priority_normal'), t('priority_low')])
+        # Cargar prioridad actual
+        try:
+            parent = self.parent() if isinstance(self.parent(), GameLibrary) else None
+            current_priority = 'normal'
+            if parent and parent.theme_file.exists():
+                data = json.load(open(parent.theme_file, 'r', encoding='utf-8'))
+                current_priority = data.get('process_priority', 'normal')
+            priority_index = {'high': 0, 'normal': 1, 'low': 2}.get(current_priority, 1)
+            self.priority_combo.setCurrentIndex(priority_index)
+        except Exception:
+            self.priority_combo.setCurrentIndex(1)
+        def on_priority_change(idx):
+            parent = self.parent() if isinstance(self.parent(), GameLibrary) else None
+            if parent:
+                priority_map = {0: 'high', 1: 'normal', 2: 'low'}
+                new_priority = priority_map.get(idx, 'normal')
+                parent._set_process_priority(new_priority)
+                try:
+                    data = json.load(open(parent.theme_file, 'r', encoding='utf-8'))
+                    data['process_priority'] = new_priority
+                    json.dump(data, open(parent.theme_file, 'w', encoding='utf-8'), indent=2, ensure_ascii=False)
+                except Exception:
+                    pass
+        self.priority_combo.currentIndexChanged.connect(on_priority_change)
+        priority_layout.addWidget(self.priority_combo)
+        priority_layout.addStretch()
+        layout.addWidget(priority_container)
+        
         layout.addStretch()
         return widget
 
@@ -1137,6 +1179,9 @@ class GameLibrary(QMainWindow):
         
         # Cargar idioma ANTES de crear la UI
         self._load_language()
+        
+        # Cargar y aplicar prioridad de proceso
+        self._load_process_priority()
         
         self.bg_pixmap = None
         self.bg_opacity = 0.15
@@ -1403,6 +1448,19 @@ class GameLibrary(QMainWindow):
             print(f'Error cargando idioma: {e}')
             I18n.set_language('en')
     
+    def _load_process_priority(self):
+        """Cargar y aplicar la prioridad de proceso guardada"""
+        try:
+            if self.theme_file.exists():
+                data = json.load(open(self.theme_file, 'r', encoding='utf-8'))
+                priority = data.get('process_priority', 'normal')
+                self._set_process_priority(priority)
+            else:
+                self._set_process_priority('normal')
+        except Exception as e:
+            print(f'Error cargando prioridad: {e}')
+            self._set_process_priority('normal')
+    
     def _first_run_setup(self):
         """Prepara entorno de primera ejecución: crea carpetas, archivos base y verifica dependencias externas."""
         try:
@@ -1499,6 +1557,39 @@ class GameLibrary(QMainWindow):
                     pass
         except Exception as e:
             print('Startup setup error:', e)
+    
+    def _set_process_priority(self, priority: str):
+        """Establece la prioridad del proceso actual."""
+        try:
+            import psutil
+            process = psutil.Process(os.getpid())
+            
+            priority_map = {
+                'high': psutil.HIGH_PRIORITY_CLASS,
+                'normal': psutil.NORMAL_PRIORITY_CLASS,
+                'low': psutil.IDLE_PRIORITY_CLASS
+            }
+            
+            priority_class = priority_map.get(priority, psutil.NORMAL_PRIORITY_CLASS)
+            process.nice(priority_class)
+            print(f'Process priority set to: {priority}')
+        except ImportError:
+            # Si psutil no está disponible, usar ctypes en Windows
+            try:
+                import ctypes
+                priorities = {
+                    'high': 0x00000080,  # HIGH_PRIORITY_CLASS
+                    'normal': 0x00000020,  # NORMAL_PRIORITY_CLASS
+                    'low': 0x00000040  # IDLE_PRIORITY_CLASS
+                }
+                priority_flag = priorities.get(priority, 0x00000020)
+                handle = ctypes.windll.kernel32.GetCurrentProcess()
+                ctypes.windll.kernel32.SetPriorityClass(handle, priority_flag)
+                print(f'Process priority set to: {priority}')
+            except Exception as e:
+                print(f'Error setting process priority: {e}')
+        except Exception as e:
+            print(f'Error setting process priority: {e}')
     
     def create_steam_icon(self):
         """Crea un icono de Steam usando QPixmap"""
