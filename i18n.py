@@ -17,6 +17,12 @@ TRANSLATIONS = {
         'view_grid': 'Vista Grid',
         'view_list': 'Vista Lista',
         
+        # Filtros y favoritos
+        'btn_favorites_filter': '⭐ Solo Favoritos',
+        'btn_add_favorite': 'Agregar a Favoritos',
+        'btn_remove_favorite': 'Quitar de Favoritos',
+        'label_favorite': 'Favorito',
+        
         # Diálogo de agregar/editar juego
         'dialog_add_game': 'Agregar Juego',
         'dialog_edit_game': 'Editar Juego',
@@ -129,6 +135,12 @@ TRANSLATIONS = {
         # Modos de vista
         'view_grid': 'Grid View',
         'view_list': 'List View',
+        
+        # Filters and favorites
+        'btn_favorites_filter': '⭐ Favorites Only',
+        'btn_add_favorite': 'Add to Favorites',
+        'btn_remove_favorite': 'Remove from Favorites',
+        'label_favorite': 'Favorite',
         
         # Diálogo de agregar/editar juego
         'dialog_add_game': 'Add Game',

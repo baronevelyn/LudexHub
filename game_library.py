@@ -84,6 +84,7 @@ class GameCard(QFrame):
         self.setCursor(Qt.PointingHandCursor)
         self._orig_rect = None
         self._anim = None
+        self.is_favorite = self.game.get('is_favorite', False)
         
         # Layout raíz: en lista usamos horizontal (imagen a la izquierda)
         if self.list_mode:
@@ -116,6 +117,32 @@ class GameCard(QFrame):
         else:
             self.image_label.setText("🎮")
         
+        # Botón de favorito (aparece en ambos modos, pero mejor visible en grid)
+        self.favorite_btn = QPushButton('⭐' if self.is_favorite else '☆')
+        self.favorite_btn.setFixedSize(40, 40)
+        self.favorite_btn.setStyleSheet("""
+            QPushButton {
+                background-color: rgba(0, 0, 0, 180);
+                border: none;
+                border-radius: 20px;
+                font-size: 20px;
+                color: #FFD700;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: rgba(0, 0, 0, 220);
+            }
+            QPushButton:pressed {
+                background-color: rgba(0, 0, 0, 150);
+            }
+        """)
+        def toggle_favorite():
+            self.is_favorite = not self.is_favorite
+            self.favorite_btn.setText('⭐' if self.is_favorite else '☆')
+            if self.parent_window:
+                self.parent_window.toggle_favorite(self.game['id'], self.is_favorite)
+        self.favorite_btn.clicked.connect(toggle_favorite)
+        
         if self.list_mode:
             # Lista: imagen a la izquierda y, a la derecha, SOLO el nombre grande
             layout.addWidget(self.image_label)
@@ -147,10 +174,20 @@ class GameCard(QFrame):
                 epic_badge.setFixedHeight(24)
                 right_layout.addWidget(epic_badge)
             right_layout.addStretch()
+            # Agregar botón favorito en lista
+            right_layout.addWidget(self.favorite_btn, alignment=Qt.AlignTop | Qt.AlignRight)
             layout.addWidget(right, 1)
         else:
             # Grid: imagen arriba, debajo icono + nombre + ruta
-            layout.addWidget(self.image_label)
+            # Crear container para imagen + botón favorito
+            image_container = QWidget()
+            image_container_layout = QHBoxLayout(image_container)
+            image_container_layout.setContentsMargins(0, 0, 0, 0)
+            image_container_layout.addWidget(self.image_label)
+            image_container_layout.addStretch()
+            image_container_layout.addWidget(self.favorite_btn, alignment=Qt.AlignTop | Qt.AlignRight)
+            layout.addWidget(image_container)
+            
             content_widget = QWidget()
             content_widget.setStyleSheet(f"background-color: {card_bg};")
             content_layout = QHBoxLayout()
@@ -1750,6 +1787,33 @@ class GameLibrary(QMainWindow):
         self.view_combo.currentIndexChanged.connect(self.render_games)
         header_controls.addWidget(self.view_combo)
         
+        # Botón filtro de favoritos
+        self.favorites_btn = QPushButton(t('btn_favorites_filter'))
+        self.favorites_btn.setCheckable(True)
+        self.favorites_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #1a1f2e;
+                border: 1px solid #2d3748;
+                border-radius: 8px;
+                padding: 10px 15px;
+                color: #e8eaed;
+                font-size: 14px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                border: 1px solid #667eea;
+                background-color: #252d3d;
+            }
+            QPushButton:checked {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
+                    stop:0 #667eea, stop:1 #764ba2);
+                border: 1px solid #667eea;
+                color: white;
+            }
+        """)
+        self.favorites_btn.clicked.connect(self.render_games)
+        header_controls.addWidget(self.favorites_btn)
+        
         # Botón agregar
         self.add_btn = QPushButton(t('btn_add_game'))
         self.add_btn.setStyleSheet("""
@@ -2128,6 +2192,14 @@ class GameLibrary(QMainWindow):
                 json.dump(self.games, f, indent=2, ensure_ascii=False)
         except Exception as e:
             print(f"Error al guardar juegos: {e}")
+    
+    def toggle_favorite(self, game_id, is_favorite):
+        """Alternar estado favorito de un juego y guardar"""
+        for game in self.games:
+            if game['id'] == game_id:
+                game['is_favorite'] = is_favorite
+                break
+        self.save_games()
             
     def render_games(self):
         """Renderizar la lista de juegos"""
@@ -2140,6 +2212,10 @@ class GameLibrary(QMainWindow):
         # Filtrar juegos por búsqueda
         search_query = self.search_input.text().lower().strip() if hasattr(self, 'search_input') else ''
         filtered_games = [g for g in self.games if search_query in g['name'].lower()] if search_query else self.games
+        
+        # Filtrar por favoritos si el botón está activo
+        if hasattr(self, 'favorites_btn') and self.favorites_btn.isChecked():
+            filtered_games = [g for g in filtered_games if g.get('is_favorite', False)]
         
         if not filtered_games:
             # Mostrar estado vacío o sin resultados
