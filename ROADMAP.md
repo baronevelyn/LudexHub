@@ -52,11 +52,11 @@
 - [ ] **Custom Theme Name** - Users can name their custom themes
 
 ### 🖼️ Animated Background Support
-- [ ] **GIF Format Support** - Play animated GIFs as background
+- [x] **GIF Format Support** - Play animated GIFs as background
 - [ ] **Video Format Support** - WebM/MP4 backgrounds (optional)
-- [ ] **Background Animation Speed** - Control playback speed
-- [ ] **Performance Optimization** - Efficient GIF rendering
-- [ ] **Fallback to First Frame** - If animation fails to play
+- [x] **Background Type Selector** - Toggle static/animated in settings
+- [x] **Performance Optimization** - Efficient GIF rendering with QMovie
+- [x] **Frame Update Timer** - Smooth playback (~30fps)
 
 ### ⚙️ Auto-Update System
 - [ ] **Update Checker** - Check GitHub releases on startup
