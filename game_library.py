@@ -6,6 +6,7 @@ from pathlib import Path
 import tempfile
 import ctypes
 import uuid
+from datetime import datetime, timedelta
 from steam_scanner import SteamScanner
 from epic_scanner import EpicScanner
 from i18n import I18n, t
@@ -13,8 +14,9 @@ from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
                              QHBoxLayout, QGridLayout, QPushButton, QLabel, 
                              QLineEdit, QDialog, QScrollArea, QFrame, QComboBox,
                              QMessageBox, QFileDialog, QMenu, QSlider, QToolButton, 
-                             QProgressDialog, QCheckBox, QGraphicsOpacityEffect)
-from PyQt5.QtCore import Qt, QSize, QThread, pyqtSignal, QFileInfo, QPropertyAnimation, QEasingCurve, QPoint, QEvent, QRect
+                             QProgressDialog, QCheckBox, QGraphicsOpacityEffect, QInputDialog,
+                             QActionGroup)
+from PyQt5.QtCore import Qt, QSize, QThread, pyqtSignal, QFileInfo, QPropertyAnimation, QEasingCurve, QPoint, QEvent, QRect, QTimer
 try:
     from PyQt5.QtWinExtras import QtWin
 except Exception:
@@ -55,6 +57,15 @@ class GameCard(QFrame):
         self.list_mode = list_mode
         self.animation_delay = animation_delay
         self.setup_ui()
+
+    def _format_playtime(self, seconds):
+        seconds = int(seconds or 0)
+        minutes = seconds // 60
+        hours = minutes // 60
+        minutes = minutes % 60
+        if hours:
+            return f"{hours}h {minutes}m"
+        return f"{minutes}m"
         
     def setup_ui(self):
         self.setFrameStyle(QFrame.StyledPanel | QFrame.Raised)
@@ -153,11 +164,18 @@ class GameCard(QFrame):
             right_layout.setSpacing(8)
             name_label = QLabel(self.game['name'])
             text_color = c.get('text_primary', '#e8eaed')
+            text_secondary = c.get('text_secondary', '#9aa0a6')
             name_label.setStyleSheet(f"""
                 color:{text_color}; font-size:22px; font-weight:800;
             """)
             name_label.setWordWrap(True)
             right_layout.addWidget(name_label)
+
+            playtime_seconds = int(self.game.get('total_play_time', 0) or 0)
+            playtime_label = QLabel(t('label_playtime', value=self._format_playtime(playtime_seconds)))
+            playtime_label.setStyleSheet(f"color:{text_secondary}; font-size:13px;")
+            self.playtime_label = playtime_label
+            right_layout.addWidget(playtime_label)
             # Badge Steam si aplica
             if self.game.get('is_steam_game'):
                 steam_badge = QLabel("Steam")
@@ -237,6 +255,11 @@ class GameCard(QFrame):
 
             info_layout.addWidget(name_label)
             info_layout.addWidget(path_label)
+            playtime_seconds = int(self.game.get('total_play_time', 0) or 0)
+            playtime_label = QLabel(t('label_playtime', value=self._format_playtime(playtime_seconds)))
+            playtime_label.setStyleSheet(f"color: {text_secondary}; font-size: 11px;")
+            self.playtime_label = playtime_label
+            info_layout.addWidget(playtime_label)
             # Badge Steam si aplica
             if self.game.get('is_steam_game'):
                 steam_badge = QLabel("Steam")
@@ -436,6 +459,37 @@ class GameCard(QFrame):
         play_action = menu.addAction("▶ Jugar")
         edit_action = menu.addAction("✎ Editar")
         delete_action = menu.addAction("🗑 Eliminar")
+
+        folders_menu = menu.addMenu(t('menu_folders'))
+        folders_menu.setStyleSheet(menu.styleSheet())
+        new_folder_action = folders_menu.addAction(f"＋ {t('btn_new_folder')}")
+        folders_menu.addSeparator()
+        folders = []
+        if self.parent_window:
+            folders = self.parent_window._collect_folders()
+        for fname in ['Steam', 'Epic']:
+            if fname not in folders:
+                folders.append(fname)
+        seen = set()
+        for fname in folders:
+            if fname in seen:
+                continue
+            seen.add(fname)
+            action = folders_menu.addAction(fname)
+            action.setCheckable(True)
+            if fname in (self.game.get('folders') or []):
+                action.setChecked(True)
+            is_auto_locked = (fname == 'Steam' and self.game.get('is_steam_game')) or (fname == 'Epic' and self.game.get('is_epic_game'))
+            if is_auto_locked:
+                action.setDisabled(True)
+            def make_handler(folder=fname, act=action, locked=is_auto_locked):
+                return lambda: self.parent_window and self.parent_window._update_game_folders(self.game['id'], folder, add=act.isChecked(), lock_auto=locked)
+            action.toggled.connect(make_handler())
+
+        def handle_new_folder():
+            if self.parent_window:
+                self.parent_window._show_new_folder_dialog()
+        new_folder_action.triggered.connect(handle_new_folder)
         
         action = menu.exec_(event.globalPos())
         
@@ -1015,6 +1069,40 @@ class ColorPickerDialog(QDialog):
         priority_layout.addWidget(self.priority_combo)
         priority_layout.addStretch()
         layout.addWidget(priority_container)
+
+        # Toggle de tracking de tiempo de juego
+        playtime_container = QWidget()
+        playtime_layout = QHBoxLayout(playtime_container)
+        playtime_layout.setContentsMargins(0,0,0,0)
+        playtime_layout.setSpacing(10)
+
+        self.playtime_checkbox = QCheckBox(t('label_playtime_tracking'))
+        try:
+            parent = self.parent() if isinstance(self.parent(), GameLibrary) else None
+            current = parent.playtime_tracking_enabled if parent else True
+            self.playtime_checkbox.setChecked(current)
+        except Exception:
+            self.playtime_checkbox.setChecked(True)
+
+        def on_playtime_toggle(state):
+            parent = self.parent() if isinstance(self.parent(), GameLibrary) else None
+            if parent:
+                enabled = state == Qt.Checked
+                parent.set_playtime_tracking(enabled)
+                try:
+                    data = json.load(open(parent.theme_file, 'r', encoding='utf-8'))
+                    data['playtime_tracking_enabled'] = enabled
+                    json.dump(data, open(parent.theme_file, 'w', encoding='utf-8'), indent=2, ensure_ascii=False)
+                except Exception:
+                    pass
+        self.playtime_checkbox.stateChanged.connect(on_playtime_toggle)
+        playtime_layout.addWidget(self.playtime_checkbox)
+
+        hint = QLabel(t('hint_playtime_tracking'))
+        hint.setStyleSheet('color:#9aa0a6;')
+        playtime_layout.addWidget(hint)
+        playtime_layout.addStretch()
+        layout.addWidget(playtime_container)
         
         layout.addStretch()
         return widget
@@ -1223,12 +1311,31 @@ class GameLibrary(QMainWindow):
         self.data_file = Path.home() / '.game_library' / 'games.json'
         self.data_file.parent.mkdir(exist_ok=True)
         self.theme_file = Path.home() / '.game_library' / 'theme.json'
+        self.custom_folders = []
+        self.active_folder = None  # None -> todos
+        self.folder_buttons = {}
+        self.folder_icons = {}  # folder_name -> icon_path
+        self.sidebar_anim = None
+        self.filter_favorites = False
+        self.filter_platform = None  # None/Steam/Epic/Manual
+        self.sort_mode = 'name_asc'  # default sort
+        self._suppress_render_animation = False
+
+        # Seguimiento de tiempo de juego
+        self.playtime_tracking_enabled = True
+        self._play_session = None  # {'game_id': str, 'start_time': datetime, 'process': Popen}
+        self.playtime_timer = QTimer(self)
+        self.playtime_timer.setInterval(1000)
+        self.playtime_timer.timeout.connect(self._tick_playtime)
         
         # Cargar idioma ANTES de crear la UI
         self._load_language()
         
         # Cargar y aplicar prioridad de proceso
         self._load_process_priority()
+
+        # Cargar preferencia de seguimiento de tiempo
+        self._load_playtime_setting()
         
         self.bg_pixmap = None
         self.bg_opacity = 0.15
@@ -1436,6 +1543,13 @@ class GameLibrary(QMainWindow):
                 self.bg_opacity = float(data.get('background_opacity', self.bg_opacity))
                 self.bg_history = list(data.get('background_history', []) or [])
                 self.color_scheme = data.get('color_scheme', {})
+                self.playtime_tracking_enabled = bool(data.get('playtime_tracking_enabled', self.playtime_tracking_enabled))
+                self.custom_folders = list(data.get('custom_folders', []) or [])
+                self.folder_icons = dict(data.get('folder_icons', {}) or {})
+                self.active_folder = data.get('last_folder') or None
+                self.filter_platform = data.get('filter_platform') or None
+                self.filter_favorites = bool(data.get('filter_favorites', False))
+                self.sort_mode = data.get('sort_mode') or 'name_asc'
                 if bg_path and os.path.exists(bg_path):
                     pm = QPixmap(bg_path)
                     if not pm.isNull():
@@ -1469,8 +1583,16 @@ class GameLibrary(QMainWindow):
             'background_image': background_image if background_image else '',
             'background_opacity': background_opacity,
             'background_history': new_hist,
-            'color_scheme': color_scheme or {}
+            'color_scheme': color_scheme or {},
+            'custom_folders': self.custom_folders,
+            'folder_icons': self.folder_icons,
+            'last_folder': self.active_folder,
+            'filter_platform': self.filter_platform,
+            'filter_favorites': self.filter_favorites,
+            'sort_mode': self.sort_mode
         })
+        if 'playtime_tracking_enabled' not in payload:
+            payload['playtime_tracking_enabled'] = self.playtime_tracking_enabled
         
         try:
             json.dump(payload, open(self.theme_file, 'w', encoding='utf-8'), indent=2, ensure_ascii=False)
@@ -1507,6 +1629,18 @@ class GameLibrary(QMainWindow):
         except Exception as e:
             print(f'Error cargando prioridad: {e}')
             self._set_process_priority('normal')
+
+    def _load_playtime_setting(self):
+        """Cargar preferencia de tracking de tiempo desde theme.json"""
+        try:
+            if self.theme_file.exists():
+                data = json.load(open(self.theme_file, 'r', encoding='utf-8'))
+                self.playtime_tracking_enabled = bool(data.get('playtime_tracking_enabled', True))
+            else:
+                self.playtime_tracking_enabled = True
+        except Exception as e:
+            print(f'Error cargando preferencia de playtime: {e}')
+            self.playtime_tracking_enabled = True
     
     def _first_run_setup(self):
         """Prepara entorno de primera ejecución: crea carpetas, archivos base y verifica dependencias externas."""
@@ -1525,7 +1659,9 @@ class GameLibrary(QMainWindow):
                     'color_scheme': ColorPickerDialog(None).default_colors(),
                     'startup_on_boot': False,
                     'startup_on_boot_decided': False,
-                    'language': 'en'
+                    'language': 'en',
+                    'playtime_tracking_enabled': True,
+                    'process_priority': 'normal'
                 }, open(self.theme_file, 'w', encoding='utf-8'))
             # Crear carpetas de caché
             (Path.home() / '.game_library' / 'icons').mkdir(parents=True, exist_ok=True)
@@ -1682,7 +1818,17 @@ class GameLibrary(QMainWindow):
         
     def setup_ui(self):
         self.setWindowTitle(t('app_title'))
+        # Volver a tamaño fijo para evitar recortes entre pantallas
         self.setFixedSize(1400, 700)
+        try:
+            primary = QApplication.primaryScreen()
+            avail = primary.availableGeometry() if primary else None
+            if avail:
+                x = avail.x() + (avail.width() - self.width()) // 2
+                y = avail.y() + (avail.height() - self.height()) // 2
+                self.move(x, y)
+        except Exception:
+            pass
         
         # Estilo general
         self.setStyleSheet("""
@@ -1790,32 +1936,16 @@ class GameLibrary(QMainWindow):
         self.view_combo.currentIndexChanged.connect(self.render_games)
         header_controls.addWidget(self.view_combo)
         
-        # Botón filtro de favoritos
-        self.favorites_btn = QPushButton(t('btn_favorites_filter'))
-        self.favorites_btn.setCheckable(True)
-        self.favorites_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #1a1f2e;
-                border: 1px solid #2d3748;
-                border-radius: 8px;
-                padding: 10px 15px;
-                color: #e8eaed;
-                font-size: 14px;
-                font-weight: bold;
-            }
-            QPushButton:hover {
-                border: 1px solid #667eea;
-                background-color: #252d3d;
-            }
-            QPushButton:checked {
-                background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
-                    stop:0 #667eea, stop:1 #764ba2);
-                border: 1px solid #667eea;
-                color: white;
-            }
+        # Botón de filtros desplegable junto a la búsqueda
+        self.filter_btn = QToolButton()
+        self.filter_btn.setText('▼')
+        self.filter_btn.setPopupMode(QToolButton.InstantPopup)
+        self.filter_btn.setStyleSheet("""
+            QToolButton { background-color:#1a1f2e; border:1px solid #2d3748; border-radius:8px; padding:8px 12px; color:#e8eaed; font-size:14px; }
+            QToolButton:hover { border-color:#667eea; background:#252d3d; }
         """)
-        self.favorites_btn.clicked.connect(self.render_games)
-        header_controls.addWidget(self.favorites_btn)
+        self._build_filter_menu()
+        tb_layout.insertWidget(tb_layout.indexOf(self.search_input)+1, self.filter_btn)
         
         # Botón agregar
         self.add_btn = QPushButton(t('btn_add_game'))
@@ -1966,7 +2096,13 @@ class GameLibrary(QMainWindow):
         inner_layout.setContentsMargins(30, 20, 30, 30)
         inner_layout.setSpacing(20)
         
-        # Área de scroll para los juegos
+        # Área de contenido con sidebar + scroll
+        content_layout = QHBoxLayout()
+        content_layout.setContentsMargins(0, 0, 0, 0)
+        content_layout.setSpacing(16)
+
+        self._init_sidebar()
+
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
@@ -1978,7 +2114,10 @@ class GameLibrary(QMainWindow):
         self.games_widget.setLayout(self.games_layout)
         
         scroll.setWidget(self.games_widget)
-        inner_layout.addWidget(scroll)
+
+        content_layout.addWidget(self.sidebar_container)
+        content_layout.addWidget(scroll, 1)
+        inner_layout.addLayout(content_layout)
         main_layout.addWidget(inner)
         
         central_widget.setLayout(main_layout)
@@ -2002,6 +2141,450 @@ class GameLibrary(QMainWindow):
         if event.buttons() & Qt.LeftButton:
             self.move(event.globalPos() - self._drag_pos)
             event.accept()
+
+    def _init_sidebar(self):
+        self.sidebar_container = QWidget()
+        self.sidebar_container.setFixedWidth(60)
+        self.sidebar_container.setMinimumWidth(60)
+        self.sidebar_container.setMaximumWidth(60)
+        self.sidebar_container.setStyleSheet("background-color:#0f1419; border-radius:12px;")
+        self.sidebar_layout = QVBoxLayout(self.sidebar_container)
+        self.sidebar_layout.setContentsMargins(8, 12, 8, 12)
+        self.sidebar_layout.setSpacing(8)
+        self.sidebar_hint = QLabel(t('sidebar_hint'))
+        self.sidebar_hint.setStyleSheet("color:#9aa0a6; font-size:11px;")
+        self.sidebar_hint.setWordWrap(True)
+        self.sidebar_hint.setVisible(False)
+        self.sidebar_layout.addWidget(self.sidebar_hint)
+        self.sidebar_layout.addStretch()
+        self._refresh_sidebar_buttons()
+
+        def enter(ev):
+            self._expand_sidebar()
+            QWidget.enterEvent(self.sidebar_container, ev)
+        def leave(ev):
+            self._collapse_sidebar()
+            QWidget.leaveEvent(self.sidebar_container, ev)
+        self.sidebar_container.enterEvent = enter
+        self.sidebar_container.leaveEvent = leave
+
+    def _expand_sidebar(self):
+        target = 220
+        if self.sidebar_container.maximumWidth() == target:
+            return
+        anim = QPropertyAnimation(self.sidebar_container, b"maximumWidth")
+        anim.setDuration(180)
+        anim.setStartValue(self.sidebar_container.maximumWidth())
+        anim.setEndValue(target)
+        anim.setEasingCurve(QEasingCurve.OutCubic)
+        anim.start()
+        self.sidebar_anim = anim
+        self.sidebar_hint.setVisible(True)
+
+    def _collapse_sidebar(self):
+        target = 60
+        if self.sidebar_container.maximumWidth() == target:
+            return
+        anim = QPropertyAnimation(self.sidebar_container, b"maximumWidth")
+        anim.setDuration(180)
+        anim.setStartValue(self.sidebar_container.maximumWidth())
+        anim.setEndValue(target)
+        anim.setEasingCurve(QEasingCurve.OutCubic)
+        anim.start()
+        self.sidebar_anim = anim
+        self.sidebar_hint.setVisible(False)
+
+    def _collect_folders(self):
+        folders = set(self.custom_folders or [])
+        for g in self.games:
+            for f in g.get('folders', []) or []:
+                folders.add(f)
+        has_steam = any(g.get('is_steam_game') for g in self.games)
+        has_epic = any(g.get('is_epic_game') for g in self.games)
+        if has_steam:
+            folders.add('Steam')
+        if has_epic:
+            folders.add('Epic')
+        return sorted(folders)
+
+    def _build_filter_menu(self):
+        menu = QMenu(self)
+        menu.setStyleSheet("""
+            QMenu { background-color:#1a1f2e; border:1px solid #2d3748; border-radius:8px; padding:6px 0; }
+            QMenu::item { color:#e8eaed; padding:8px 18px; }
+            QMenu::item:selected { background:#252d3d; }
+        """)
+
+        # Plataforma - radio buttons (solo una opción)
+        platform_menu = QMenu(t('menu_platform'), self)
+        platform_group = QActionGroup(self)
+        platform_group.setExclusive(True)
+        def add_platform(label, key):
+            act = platform_menu.addAction(label)
+            act.setCheckable(True)
+            platform_group.addAction(act)
+            act.setChecked(self.filter_platform == key)
+            act.triggered.connect(lambda checked, k=key: self._set_platform_filter(k) if checked else None)
+        add_platform(t('label_all_games'), None)
+        add_platform(t('label_folder_steam'), 'Steam')
+        add_platform(t('label_folder_epic'), 'Epic')
+        add_platform(t('label_platform_manual'), 'Manual')
+        menu.addMenu(platform_menu)
+
+        fav_act = menu.addAction(t('btn_favorites_filter'))
+        fav_act.setCheckable(True)
+        fav_act.setChecked(self.filter_favorites)
+        fav_act.triggered.connect(self._toggle_favorites_filter)
+
+        menu.addSeparator()
+
+        # Ordenar - radio buttons (solo una opción)
+        sort_menu = QMenu(t('menu_sort'), self)
+        sort_group = QActionGroup(self)
+        sort_group.setExclusive(True)
+        def add_sort(label, key):
+            act = sort_menu.addAction(label)
+            act.setCheckable(True)
+            sort_group.addAction(act)
+            act.setChecked(self.sort_mode == key)
+            act.triggered.connect(lambda checked, k=key: self._set_sort_mode(k) if checked else None)
+        add_sort(t('sort_name_asc'), 'name_asc')
+        add_sort(t('sort_last_played_desc'), 'last_played_desc')
+        add_sort(t('sort_playtime_desc'), 'playtime_desc')
+        add_sort(t('sort_date_newest'), 'date_added_desc')
+        add_sort(t('sort_date_oldest'), 'date_added_asc')
+        menu.addMenu(sort_menu)
+
+        self.filter_btn.setMenu(menu)
+
+    def _set_platform_filter(self, key):
+        self.filter_platform = key
+        self._persist_filters()
+        self._build_filter_menu()  # Reconstruir menú para actualizar checks
+        self.render_games()
+
+    def _toggle_favorites_filter(self):
+         self.filter_favorites = not self.filter_favorites
+         if self.filter_favorites:
+             self.active_folder = '__favorites__'
+         elif self.active_folder == '__favorites__':
+             self.active_folder = None
+         self._sync_folder_selection()
+         self._persist_filters()
+         self.render_games()
+
+    def _set_sort_mode(self, key):
+         self.sort_mode = key
+         self._persist_filters()
+         self._build_filter_menu()  # Reconstruir menú para actualizar checks
+         self.render_games()
+
+    def _persist_filters(self):
+         try:
+             data = json.load(open(self.theme_file, 'r', encoding='utf-8')) if self.theme_file.exists() else {}
+             data['filter_platform'] = self.filter_platform
+             data['filter_favorites'] = self.filter_favorites
+             data['sort_mode'] = self.sort_mode
+             data['last_folder'] = self.active_folder
+             json.dump(data, open(self.theme_file, 'w', encoding='utf-8'), indent=2, ensure_ascii=False)
+         except Exception:
+             pass
+
+    def _refresh_sidebar_buttons(self):
+        while self.sidebar_layout.count() > 0:
+            item = self.sidebar_layout.takeAt(0)
+            w = item.widget()
+            if w and w is not self.sidebar_hint:
+                w.deleteLater()
+        self.folder_buttons = {}
+
+        self.sidebar_layout.addWidget(self.sidebar_hint)
+
+        def add_btn(key, label_text, icon_text='📁', checkable=True, disabled=False, is_custom=False):
+            btn = QPushButton(f"{icon_text}  {label_text}")
+            btn.setCheckable(checkable)
+            btn.setDisabled(disabled)
+            btn.setStyleSheet("""
+                QPushButton {background:#1a1f2e; color:#e8eaed; border:1px solid #2d3748; border-radius:10px; padding:10px; text-align:left;}
+                QPushButton:hover {border-color:#667eea; background:#252d3d;}
+                QPushButton:checked {background:#667eea; color:white; border-color:#667eea;}
+                QPushButton:disabled {color:#6b7280;}
+            """)
+            btn.clicked.connect(lambda _, k=key: self._on_folder_clicked(k))
+            if is_custom:
+                btn.setContextMenuPolicy(Qt.CustomContextMenu)
+                btn.customContextMenuRequested.connect(lambda pos, k=key, b=btn: self._on_folder_context(k, b))
+            self.sidebar_layout.addWidget(btn)
+            self.folder_buttons[key] = btn
+
+        add_btn('__all__', t('label_all_games'), icon_text='🗂')
+
+        has_steam = any(g.get('is_steam_game') for g in self.games)
+        has_epic = any(g.get('is_epic_game') for g in self.games)
+        if has_steam:
+            add_btn('Steam', t('label_folder_steam'), icon_text='🟦')
+        if has_epic:
+            add_btn('Epic', t('label_folder_epic'), icon_text='⬛')
+
+        add_btn('__favorites__', t('btn_favorites_filter'), icon_text='⭐')
+
+        for folder in self._collect_folders():
+            if folder in ('Steam', 'Epic'):
+                continue
+            icon_path = self.folder_icons.get(folder)
+            icon_text = '📁'
+            if icon_path and os.path.exists(icon_path):
+                pm = QPixmap(icon_path)
+                if not pm.isNull():
+                    icon_text = ''
+                    btn = QPushButton(folder)
+                    btn.setIcon(QIcon(pm))
+                    btn.setIconSize(QSize(20, 20))
+                    btn.setCheckable(True)
+                    btn.setStyleSheet("""
+                        QPushButton {background:#1a1f2e; color:#e8eaed; border:1px solid #2d3748; border-radius:10px; padding:10px; text-align:left;}
+                        QPushButton:hover {border-color:#667eea; background:#252d3d;}
+                        QPushButton:checked {background:#667eea; color:white; border-color:#667eea;}
+                    """)
+                    btn.clicked.connect(lambda _, k=folder: self._on_folder_clicked(k))
+                    btn.setContextMenuPolicy(Qt.CustomContextMenu)
+                    btn.customContextMenuRequested.connect(lambda pos, k=folder, b=btn: self._on_folder_context(k, b))
+                    self.sidebar_layout.addWidget(btn)
+                    self.folder_buttons[folder] = btn
+                    continue
+            add_btn(folder, folder, icon_text=icon_text, is_custom=True)
+
+        new_btn = QPushButton(f"＋  {t('btn_new_folder')}")
+        new_btn.setStyleSheet("""
+            QPushButton {background:#2d3748; color:#e8eaed; border:1px dashed #3b4454; border-radius:10px; padding:10px; text-align:left;}
+            QPushButton:hover {border-color:#667eea; background:#252d3d;}
+        """)
+        new_btn.clicked.connect(self._show_new_folder_dialog)
+        self.sidebar_layout.addWidget(new_btn)
+
+        self.sidebar_layout.addStretch()
+        self.sidebar_layout.insertWidget(0, self.sidebar_hint)
+        self._sync_folder_selection()
+
+    def _sync_folder_selection(self):
+        active = self.active_folder or '__all__'
+        for key, btn in self.folder_buttons.items():
+            btn.blockSignals(True)
+            btn.setChecked(key == active)
+            btn.blockSignals(False)
+
+    def _on_folder_clicked(self, key):
+        if key == '__favorites__':
+            self.filter_favorites = True
+            self.active_folder = '__favorites__'
+        else:
+            self.filter_favorites = False
+            self.active_folder = None if key == '__all__' else key
+        try:
+            if self.theme_file.exists():
+                data = json.load(open(self.theme_file, 'r', encoding='utf-8'))
+            else:
+                data = {}
+            data['last_folder'] = self.active_folder
+            data['filter_favorites'] = self.filter_favorites
+            json.dump(data, open(self.theme_file, 'w', encoding='utf-8'), indent=2, ensure_ascii=False)
+        except Exception:
+            pass
+        self._sync_folder_selection()
+        self.render_games()
+
+    def _show_new_folder_dialog(self):
+        dialog = QDialog(self)
+        dialog.setWindowTitle(t('dialog_new_folder'))
+        dialog.setFixedSize(400, 200)
+        layout = QVBoxLayout(dialog)
+        
+        name_label = QLabel(t('placeholder_folder_name'))
+        name_input = QLineEdit()
+        
+        icon_label = QLabel(t('label_folder_icon'))
+        icon_input = QLineEdit()
+        icon_input.setPlaceholderText(t('placeholder_folder_icon'))
+        
+        browse_btn = QPushButton('📁')
+        browse_btn.setFixedSize(45, 45)
+        browse_btn.clicked.connect(lambda: self._browse_folder_icon(icon_input))
+        
+        icon_layout = QHBoxLayout()
+        icon_layout.addWidget(icon_input)
+        icon_layout.addWidget(browse_btn)
+        
+        btn_layout = QHBoxLayout()
+        ok_btn = QPushButton(t('btn_save'))
+        ok_btn.clicked.connect(dialog.accept)
+        cancel_btn = QPushButton(t('btn_cancel'))
+        cancel_btn.clicked.connect(dialog.reject)
+        btn_layout.addWidget(ok_btn)
+        btn_layout.addWidget(cancel_btn)
+        
+        layout.addWidget(name_label)
+        layout.addWidget(name_input)
+        layout.addWidget(icon_label)
+        layout.addLayout(icon_layout)
+        layout.addStretch()
+        layout.addLayout(btn_layout)
+        
+        if dialog.exec_() == QDialog.Accepted:
+            name = name_input.text().strip()
+            icon_path = icon_input.text().strip()
+            if name and name not in ('Steam', 'Epic', '__all__', '__favorites__'):
+                if name not in self.custom_folders:
+                    self.custom_folders.append(name)
+                if icon_path and os.path.exists(icon_path):
+                    self.folder_icons[name] = icon_path
+                try:
+                    if self.theme_file.exists():
+                        data = json.load(open(self.theme_file, 'r', encoding='utf-8'))
+                    else:
+                        data = {}
+                    data['custom_folders'] = self.custom_folders
+                    data['folder_icons'] = self.folder_icons
+                    json.dump(data, open(self.theme_file, 'w', encoding='utf-8'), indent=2, ensure_ascii=False)
+                except Exception:
+                    pass
+                self._refresh_sidebar_buttons()
+
+    def _show_edit_folder_dialog(self, folder_name):
+        dialog = QDialog(self)
+        dialog.setWindowTitle(t('dialog_edit_folder'))
+        dialog.setFixedSize(400, 200)
+        layout = QVBoxLayout(dialog)
+        
+        name_label = QLabel(t('placeholder_folder_name'))
+        name_input = QLineEdit()
+        name_input.setText(folder_name)
+        
+        icon_label = QLabel(t('label_folder_icon'))
+        icon_input = QLineEdit()
+        icon_input.setPlaceholderText(t('placeholder_folder_icon'))
+        if folder_name in self.folder_icons:
+            icon_input.setText(self.folder_icons[folder_name])
+        
+        browse_btn = QPushButton('📁')
+        browse_btn.setFixedSize(45, 45)
+        browse_btn.clicked.connect(lambda: self._browse_folder_icon(icon_input))
+        
+        icon_layout = QHBoxLayout()
+        icon_layout.addWidget(icon_input)
+        icon_layout.addWidget(browse_btn)
+        
+        btn_layout = QHBoxLayout()
+        ok_btn = QPushButton(t('btn_save'))
+        ok_btn.clicked.connect(dialog.accept)
+        cancel_btn = QPushButton(t('btn_cancel'))
+        cancel_btn.clicked.connect(dialog.reject)
+        btn_layout.addWidget(ok_btn)
+        btn_layout.addWidget(cancel_btn)
+        
+        layout.addWidget(name_label)
+        layout.addWidget(name_input)
+        layout.addWidget(icon_label)
+        layout.addLayout(icon_layout)
+        layout.addStretch()
+        layout.addLayout(btn_layout)
+        
+        if dialog.exec_() == QDialog.Accepted:
+            new_name = name_input.text().strip()
+            icon_path = icon_input.text().strip()
+            if new_name and new_name not in ('Steam', 'Epic', '__all__', '__favorites__'):
+                # Renombrar si cambió
+                if new_name != folder_name:
+                    idx = self.custom_folders.index(folder_name) if folder_name in self.custom_folders else -1
+                    if idx >= 0:
+                        self.custom_folders[idx] = new_name
+                    for g in self.games:
+                        if g.get('folders'):
+                            g['folders'] = [new_name if f == folder_name else f for f in g['folders']]
+                    if folder_name in self.folder_icons:
+                        self.folder_icons[new_name] = self.folder_icons.pop(folder_name)
+                    if self.active_folder == folder_name:
+                        self.active_folder = new_name
+                # Actualizar icono
+                if icon_path and os.path.exists(icon_path):
+                    self.folder_icons[new_name] = icon_path
+                elif new_name in self.folder_icons and not icon_path:
+                    del self.folder_icons[new_name]
+                try:
+                    if self.theme_file.exists():
+                        data = json.load(open(self.theme_file, 'r', encoding='utf-8'))
+                    else:
+                        data = {}
+                    data['custom_folders'] = self.custom_folders
+                    data['folder_icons'] = self.folder_icons
+                    data['last_folder'] = self.active_folder
+                    json.dump(data, open(self.theme_file, 'w', encoding='utf-8'), indent=2, ensure_ascii=False)
+                except Exception:
+                    pass
+                self.save_games()
+                self._refresh_sidebar_buttons()
+                self.render_games()
+
+    def _browse_folder_icon(self, input_widget):
+        file_path, _ = QFileDialog.getOpenFileName(self, t('label_folder_icon'), '', 'Images (*.png *.jpg *.jpeg)')
+        if file_path:
+            input_widget.setText(file_path)
+
+    def _on_folder_context(self, key, btn_widget):
+        if key in ('Steam', 'Epic', '__all__', '__favorites__'):
+            return
+        menu = QMenu(self)
+        edit_action = menu.addAction(t('btn_edit_folder'))
+        delete_action = menu.addAction(t('btn_delete_folder'))
+        action = menu.exec_(btn_widget.mapToGlobal(QPoint(btn_widget.width()//2, btn_widget.height()//2)))
+        if action == edit_action:
+            self._show_edit_folder_dialog(key)
+        elif action == delete_action:
+            self._delete_custom_folder(key)
+
+    def _delete_custom_folder(self, folder_name):
+        if folder_name in self.custom_folders:
+            self.custom_folders = [f for f in self.custom_folders if f != folder_name]
+        # Quitar la carpeta de todos los juegos
+        for g in self.games:
+            if g.get('folders'):
+                g['folders'] = [f for f in g['folders'] if f != folder_name]
+        # Si era la carpeta activa, volver a All
+        if self.active_folder == folder_name:
+            self.active_folder = None
+        # Persistir en theme y games
+        try:
+            if self.theme_file.exists():
+                data = json.load(open(self.theme_file, 'r', encoding='utf-8'))
+            else:
+                data = {}
+            data['custom_folders'] = self.custom_folders
+            data['last_folder'] = self.active_folder
+            json.dump(data, open(self.theme_file, 'w', encoding='utf-8'), indent=2, ensure_ascii=False)
+        except Exception:
+            pass
+        self.save_games()
+        self._refresh_sidebar_buttons()
+        self._suppress_render_animation = True
+        self.render_games()
+
+    def _update_game_folders(self, game_id, folder_name, add=True, lock_auto=True):
+        for g in self.games:
+            if g['id'] == game_id:
+                folders = g.get('folders') or []
+                if lock_auto and g.get('is_steam_game') and folder_name == 'Steam':
+                    return
+                if lock_auto and g.get('is_epic_game') and folder_name == 'Epic':
+                    return
+                if add:
+                    if folder_name not in folders:
+                        folders.append(folder_name)
+                else:
+                    folders = [f for f in folders if f != folder_name]
+                g['folders'] = folders
+                break
+        self.save_games()
+        self._refresh_sidebar_buttons()
+        self.render_games()
 
     def animate_minimize(self):
         """Animación de minimizar hacia la barra de tareas"""
@@ -2069,9 +2652,19 @@ class GameLibrary(QMainWindow):
         current_screen = QApplication.screenAt(self._saved_geometry.center())
         if not current_screen:
             current_screen = QApplication.primaryScreen()
-        
+
         screen_geo = current_screen.geometry()
         taskbar_y = screen_geo.y() + screen_geo.height() - 40
+
+        # Asegurar que el objetivo a restaurar cabe en la pantalla destino
+        avail = current_screen.availableGeometry() if current_screen else screen_geo
+        target_geo = self._saved_geometry
+        if avail:
+            w = min(self._saved_geometry.width(), avail.width())
+            h = min(self._saved_geometry.height(), avail.height())
+            x = max(avail.x(), min(self._saved_geometry.x(), avail.right() - w))
+            y = max(avail.y(), min(self._saved_geometry.y(), avail.bottom() - h))
+            target_geo = QRect(x, y, w, h)
         
         # Posición inicial (pequeña en la barra de tareas)
         start_x = screen_geo.x() + screen_geo.width() // 2 - 50
@@ -2091,7 +2684,7 @@ class GameLibrary(QMainWindow):
         geometry_anim.setDuration(300)
         geometry_anim.setEasingCurve(QEasingCurve.OutQuad)
         geometry_anim.setStartValue(start_geo)
-        geometry_anim.setEndValue(self._saved_geometry)
+        geometry_anim.setEndValue(target_geo)
         animation_group.addAnimation(geometry_anim)
         
         # Animación de opacidad
@@ -2187,6 +2780,42 @@ class GameLibrary(QMainWindow):
                 self.games = []
         else:
             self.games = []
+        # Asegurar campos para playtime y favoritos en datos existentes
+        changed = False
+        fallback_base = datetime.now()
+        for idx, game in enumerate(self.games):
+            if 'is_favorite' not in game:
+                game['is_favorite'] = False
+                changed = True
+            if 'total_play_time' not in game:
+                game['total_play_time'] = 0
+                changed = True
+            if 'last_played' not in game:
+                game['last_played'] = None
+                changed = True
+            if 'date_added' not in game:
+                # Intentar campos previos; si no, usar orden del archivo como prioridad más antigua
+                ts = game.get('created_at') or game.get('added_at')
+                if not ts:
+                    ts = (fallback_base - timedelta(seconds=(len(self.games) - idx))).isoformat()
+                game['date_added'] = ts
+                changed = True
+            folders = game.get('folders')
+            if not isinstance(folders, list):
+                game['folders'] = []
+                folders = game['folders']
+                changed = True
+            auto_added = False
+            if game.get('is_steam_game') and 'Steam' not in folders:
+                folders.append('Steam')
+                auto_added = True
+            if game.get('is_epic_game') and 'Epic' not in folders:
+                folders.append('Epic')
+                auto_added = True
+            if auto_added:
+                changed = True
+        if changed:
+            self.save_games()
             
     def save_games(self):
         """Guardar juegos en el archivo JSON"""
@@ -2203,6 +2832,111 @@ class GameLibrary(QMainWindow):
                 game['is_favorite'] = is_favorite
                 break
         self.save_games()
+
+    def _update_last_played(self, game_id, persist=False):
+        """Actualizar el campo last_played para un juego"""
+        timestamp = datetime.now().isoformat()
+        for game in self.games:
+            if game['id'] == game_id:
+                game['last_played'] = timestamp
+                break
+        if persist:
+            self.save_games()
+
+    def _update_playtime_labels(self, game_id, total_seconds):
+        """Refresca el texto de tiempo jugado en la tarjeta correspondiente."""
+        # Recorre el grid para encontrar la GameCard y actualizar su label sin re-renderizar todo
+        try:
+            for i in range(self.games_layout.count()):
+                item = self.games_layout.itemAt(i)
+                w = item.widget()
+                # En grid, el widget es un contenedor; en lista es la propia card
+                candidates = []
+                if hasattr(w, 'game'):
+                    candidates.append(w)
+                if hasattr(w, 'layout') and callable(w.layout):
+                    layout = w.layout()
+                    if layout and layout.count() == 1 and hasattr(layout.itemAt(0).widget(), 'game'):
+                        candidates.append(layout.itemAt(0).widget())
+                for card in candidates:
+                    if hasattr(card, 'game') and card.game.get('id') == game_id:
+                        if hasattr(card, 'playtime_label'):
+                            card.playtime_label.setText(t('label_playtime', value=card._format_playtime(total_seconds)))
+                        return
+        except Exception:
+            pass
+
+    def _start_play_session(self, game_id, process_handle=None):
+        """Inicia una sesión de juego para acumular tiempo."""
+        # Cerrar sesión anterior si existiera
+        self._finish_play_session()
+        self._play_session = {
+            'game_id': game_id,
+            'start_time': datetime.now(),
+            'process': process_handle
+        }
+        self._update_last_played(game_id, persist=True)
+        if self.playtime_tracking_enabled and not self.playtime_timer.isActive():
+            self.playtime_timer.start()
+
+    def _finish_play_session(self, force_elapsed=None):
+        """Finaliza la sesión actual sumando el tiempo transcurrido."""
+        if not self._play_session:
+            return
+        start = self._play_session.get('start_time')
+        game_id = self._play_session.get('game_id')
+        if not start or not game_id:
+            self._play_session = None
+            self.playtime_timer.stop()
+            return
+        elapsed = force_elapsed if force_elapsed is not None else int((datetime.now() - start).total_seconds())
+        elapsed = max(0, elapsed)
+        for game in self.games:
+            if game['id'] == game_id:
+                base = int(game.get('total_play_time', 0) or 0)
+                total = base + elapsed
+                game['total_play_time'] = total
+                game['last_played'] = datetime.now().isoformat()
+                self._update_playtime_labels(game_id, total)
+                break
+        self.save_games()
+        self._play_session = None
+        self.playtime_timer.stop()
+
+    def _tick_playtime(self):
+        """Revisa periódicamente si el proceso terminó para cerrar la sesión."""
+        if not self._play_session:
+            self.playtime_timer.stop()
+            return
+        proc = self._play_session.get('process')
+        game_id = self._play_session.get('game_id')
+        start = self._play_session.get('start_time')
+        if start and game_id:
+            elapsed = int((datetime.now() - start).total_seconds())
+            # Mostrar tiempo vivo en la tarjeta
+            for game in self.games:
+                if game['id'] == game_id:
+                    base = int(game.get('total_play_time', 0) or 0)
+                    self._update_playtime_labels(game_id, base + elapsed)
+                    break
+        running = True
+        if proc is not None:
+            try:
+                running = proc.poll() is None
+            except Exception:
+                running = False
+        else:
+            running = True  # Sin handle: asumimos sigue corriendo hasta cerrar manualmente
+        if not running:
+            self._finish_play_session()
+
+    def set_playtime_tracking(self, enabled: bool):
+        """Permite activar/desactivar el seguimiento de tiempo desde la UI."""
+        self.playtime_tracking_enabled = enabled
+        if not enabled:
+            self._finish_play_session()
+        elif enabled and self._play_session and not self.playtime_timer.isActive():
+            self.playtime_timer.start()
             
     def render_games(self):
         """Renderizar la lista de juegos"""
@@ -2216,9 +2950,38 @@ class GameLibrary(QMainWindow):
         search_query = self.search_input.text().lower().strip() if hasattr(self, 'search_input') else ''
         filtered_games = [g for g in self.games if search_query in g['name'].lower()] if search_query else self.games
         
-        # Filtrar por favoritos si el botón está activo
-        if hasattr(self, 'favorites_btn') and self.favorites_btn.isChecked():
+        # Filtrar por favoritos (dropdown o carpeta Favoritos)
+        if self.filter_favorites or (self.active_folder == '__favorites__'):
             filtered_games = [g for g in filtered_games if g.get('is_favorite', False)]
+
+        # Filtrar por carpeta activa (custom/Steam/Epic)
+        if self.active_folder and self.active_folder not in ('__favorites__', '__all__'):
+            filtered_games = [g for g in filtered_games if self.active_folder in (g.get('folders') or [])]
+
+        # Filtrar por plataforma
+        if self.filter_platform == 'Steam':
+            filtered_games = [g for g in filtered_games if g.get('is_steam_game')]
+        elif self.filter_platform == 'Epic':
+            filtered_games = [g for g in filtered_games if g.get('is_epic_game')]
+        elif self.filter_platform == 'Manual':
+            filtered_games = [g for g in filtered_games if not g.get('is_steam_game') and not g.get('is_epic_game')]
+
+        # Ordenamiento
+        def sort_key(game):
+            if self.sort_mode == 'name_asc':
+                return (game.get('name') or '').lower()
+            if self.sort_mode == 'last_played_desc':
+                ts = game.get('last_played') or ''
+                return ts
+            if self.sort_mode == 'playtime_desc':
+                return -(int(game.get('total_play_time', 0) or 0))
+            if self.sort_mode == 'date_added_desc':
+                return game.get('date_added') or ''
+            if self.sort_mode == 'date_added_asc':
+                return game.get('date_added') or ''
+            return 0
+        reverse = True if self.sort_mode in ('last_played_desc', 'playtime_desc', 'date_added_desc') else False
+        filtered_games = sorted(filtered_games, key=sort_key, reverse=reverse)
         
         if not filtered_games:
             # Mostrar estado vacío o sin resultados
@@ -2238,9 +3001,9 @@ class GameLibrary(QMainWindow):
         # Mostrar juegos en grid
         list_mode = self.view_combo.currentIndex() == 1  # 0=Grid, 1=List
         columns = 1 if list_mode else 3
+        skip_anim = getattr(self, '_suppress_render_animation', False)
         for i, game in enumerate(filtered_games):
-            # Delay de 50ms entre cada tarjeta para efecto secuencial
-            delay = i * 50
+            delay = 0 if skip_anim else i * 50
             card = GameCard(game, self, list_mode=list_mode, animation_delay=delay)
             if list_mode:
                 # Direct add (vertical stack)
@@ -2254,6 +3017,7 @@ class GameLibrary(QMainWindow):
                 row = i // columns
                 col = i % columns
                 self.games_layout.addWidget(container, row, col)
+            self._suppress_render_animation = False
             
     def add_game(self):
         """Abrir diálogo para agregar juego"""
@@ -2261,6 +3025,11 @@ class GameLibrary(QMainWindow):
         if dialog.exec_() == QDialog.Accepted:
             game_data = dialog.get_game_data()
             if game_data['name'] and game_data['path']:
+                game_data.setdefault('is_favorite', False)
+                game_data['total_play_time'] = 0
+                game_data['last_played'] = None
+                game_data['date_added'] = datetime.now().isoformat()
+                game_data['folders'] = []
                 game_data['id'] = str(len(self.games) + 1)
                 self.games.append(game_data)
                 # Intentar icono si vacío
@@ -2425,7 +3194,11 @@ class GameLibrary(QMainWindow):
                         'image': metadata.get('header') or metadata.get('grid'),
                         'icon': icon_path or '',
                         'steam_appid': game_data['appid'],
-                        'is_steam_game': True
+                        'is_steam_game': True,
+                        'is_favorite': False,
+                        'total_play_time': 0,
+                        'last_played': None,
+                        'date_added': datetime.now().isoformat()
                     }
 
                     self.games.append(new_game)
@@ -2595,7 +3368,11 @@ class GameLibrary(QMainWindow):
                         'image': cover_image,
                         'icon': icon_path or '',
                         'epic_app_name': game_data['app_name'],
-                        'is_epic_game': True
+                        'is_epic_game': True,
+                        'is_favorite': False,
+                        'total_play_time': 0,
+                        'last_played': None,
+                        'date_added': datetime.now().isoformat()
                     }
                     
                     self.games.append(new_game)
@@ -2759,10 +3536,16 @@ class GameLibrary(QMainWindow):
         """Ejecutar el juego"""
         try:
             game_path = game['path']
+            process_handle = None
+            launched = False
             # Soporte para juegos de Steam via protocolo
             if isinstance(game_path, str) and game_path.startswith('steam://'):
                 try:
                     os.startfile(game_path)
+                    launched = True
+                    if self.playtime_tracking_enabled:
+                        # No tenemos handle, pero iniciamos sesión para contar mientras está abierto
+                        self._start_play_session(game['id'], process_handle=None)
                     return
                 except Exception as e:
                     QMessageBox.critical(self, "Error", f"No se pudo abrir Steam:\n{e}")
@@ -2773,12 +3556,13 @@ class GameLibrary(QMainWindow):
 
                 try:
                     # Intentar ejecutar normalmente
-                    subprocess.Popen(
+                    process_handle = subprocess.Popen(
                         [game_path],
                         cwd=game_dir,
                         shell=False,
                         start_new_session=True
                     )
+                    launched = True
                 except OSError as e:
                     # Si requiere elevación (WinError 740), intentar con UAC
                     needs_elevation = getattr(e, 'winerror', None) == 740 or 'requires elevation' in str(e).lower()
@@ -2787,6 +3571,10 @@ class GameLibrary(QMainWindow):
                             r = ctypes.windll.shell32.ShellExecuteW(None, "runas", game_path, None, game_dir, 1)
                             if r <= 32:
                                 QMessageBox.warning(self, "Error", f"No se pudo iniciar con permisos de administrador (código {r}).")
+                            else:
+                                launched = True
+                                if self.playtime_tracking_enabled:
+                                    self._update_last_played(game['id'], persist=True)
                         except Exception as ee:
                             QMessageBox.critical(self, "Error", f"No se pudo solicitar permisos de administrador:\n{ee}")
                     else:
@@ -2794,8 +3582,25 @@ class GameLibrary(QMainWindow):
                 # No mostrar mensaje para no interrumpir
             else:
                 QMessageBox.warning(self, "Error", f"No se encontró el ejecutable:\n{game_path}")
+
+            # Iniciar tracking de tiempo si corresponde
+            if launched:
+                if self.playtime_tracking_enabled and process_handle:
+                    self._start_play_session(game['id'], process_handle)
+                elif self.playtime_tracking_enabled:
+                    # Si no se pudo adjuntar proceso, al menos marcar última vez jugado
+                    self._start_play_session(game['id'], process_handle=None)
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Error al ejecutar el juego:\n{str(e)}")
+
+        def closeEvent(self, event):
+            """Al cerrar la app, finaliza sesión de juego en curso."""
+            try:
+                if self.playtime_tracking_enabled:
+                    self._finish_play_session()
+            except Exception:
+                pass
+            super().closeEvent(event)
 
 
 def main():

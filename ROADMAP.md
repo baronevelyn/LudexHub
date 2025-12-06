@@ -18,27 +18,27 @@
 ## 📋 Planned Features for v1.1 (Final Release)
 
 ### 🎮 Favorites System
-- [ ] **Mark as Favorite** - Toggle favorite status on game cards
-- [ ] **Favorites Filter** - Quick filter button to show only favorites
-- [ ] **Star Icon Display** - Visual indicator on game cards
-- [ ] **Persistent Storage** - Favorites saved in games.json
+- [x] **Mark as Favorite** - Toggle favorite status on game cards
+- [x] **Favorites Filter** - Quick filter button to show only favorites
+- [x] **Star Icon Display** - Visual indicator on game cards
+- [x] **Persistent Storage** - Favorites saved in games.json
 
 ### 🔍 Advanced Filtering & Sorting
-- [ ] **Filter by Platform** - Steam / Epic / Manual games
-- [ ] **Filter by Favorites** - Show only favorited games
-- [ ] **Sort Options**:
-  - By name (A-Z)
-  - By date added (newest/oldest)
-  - By last played (most recent first)
-  - By play time (most played)
-- [ ] **Filter Persistence** - Remember last filter when app closes
+- [x] **Filter by Platform** - Steam / Epic / Manual games
+- [x] **Filter by Favorites** - Show only favorited games (toggle y carpeta "Favoritos")
+- [x] **Sort Options**:
+  - By name (A-Z) ✅
+  - By last played (most recent first) ✅
+  - By play time (most played) ✅
+  - By date added (newest/oldest) ✅
+- [x] **Filter Persistence** - Remember last filter when app closes
+- [~] **Game Folders & Sidebar** - Custom folders with user-defined names; auto-create Steam/Epic folders; games can belong to multiple folders; collapsible left sidebar that expands on hover to pick "All games" or a specific folder (MVP listo; pulir asignaciones múltiples/persistencia de folders)
 
 ### ⏱️ Play Time Tracking
-- [ ] **Launch Timer** - Track when game starts and ends
-- [ ] **Total Play Time** - Display total hours/minutes per game
-- [ ] **Last Played** - Show timestamp of last game launch
-- [ ] **Play Time Display** - Show in game card or details view
-- [ ] **Statistics** - Aggregate stats in dashboard
+- [x] **Launch Timer** - Track when game starts and ends
+- [x] **Tracking Toggle** - Enable/disable tracking to reduce resource usage
+- [x] **Total Play Time** - Display total hours/minutes per game
+- [x] **Play Time Display** - Show in game card or details view
 
 ### 🎨 Enhanced Theme System
 - [ ] **New Theme Presets** (6+ additional themes):
@@ -147,6 +147,6 @@
 
 ---
 
-**Last Updated**: December 5, 2025
+**Last Updated**: December 6, 2025
 **Status**: Planning phase
 **Target Release**: End of Q4 2025
