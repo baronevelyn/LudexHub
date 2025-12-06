@@ -16,7 +16,7 @@ from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
                              QMessageBox, QFileDialog, QMenu, QSlider, QToolButton, 
                              QProgressDialog, QCheckBox, QGraphicsOpacityEffect, QInputDialog,
                              QActionGroup)
-from PyQt5.QtCore import Qt, QSize, QThread, pyqtSignal, QFileInfo, QPropertyAnimation, QEasingCurve, QPoint, QEvent, QRect, QTimer
+from PyQt5.QtCore import Qt, QSize, QThread, pyqtSignal, QFileInfo, QPropertyAnimation, QEasingCurve, QPoint, QEvent, QRect, QTimer, QMovie
 try:
     from PyQt5.QtWinExtras import QtWin
 except Exception:
@@ -1113,6 +1113,26 @@ class ColorPickerDialog(QDialog):
         layout.setSpacing(18)
         layout.setContentsMargins(24,24,24,24)
 
+        # Background type selector
+        type_container = QWidget()
+        type_layout = QHBoxLayout(type_container)
+        type_layout.setContentsMargins(0,0,0,0)
+        type_layout.setSpacing(10)
+        type_layout.addWidget(QLabel(t('label_bg_type')))
+        self.bg_type_combo = QComboBox()
+        self.bg_type_combo.setStyleSheet("""
+            QComboBox { background:#252d3d; border:2px solid #2d3748; border-radius:8px; padding:8px; color:#e8eaed; min-width:150px; }
+            QComboBox:hover { border-color:#667eea; }
+            QComboBox::drop-down { border:none; }
+            QComboBox QAbstractItemView { background:#252d3d; border:1px solid #2d3748; color:#e8eaed; selection-background-color:#667eea; }
+        """)
+        self.bg_type_combo.addItem(t('bg_type_static'), 'static')
+        self.bg_type_combo.addItem(t('bg_type_animated'), 'animated')
+        self.bg_type_combo.setCurrentIndex(0)
+        type_layout.addWidget(self.bg_type_combo)
+        type_layout.addStretch()
+        layout.addWidget(type_container)
+
         layout.addWidget(QLabel(t('label_bg_image')))
         hl_bg = QHBoxLayout()
         self.bg_input = QLineEdit()
@@ -1262,13 +1282,20 @@ class ColorPickerDialog(QDialog):
             btn.setStyleSheet(f"QPushButton#colorBtn {{ background:{color}; color:white; border:2px solid #2d3748; }}")
 
     def pick_background(self):
-        file_path, _ = QFileDialog.getOpenFileName(self, 'Seleccionar Imagen de Fondo', '', 'Imágenes (*.png *.jpg *.jpeg *.bmp)')
+        file_filter = 'All Supported (*.png *.jpg *.jpeg *.bmp *.gif);;Static Images (*.png *.jpg *.jpeg *.bmp);;Animated GIF (*.gif)'
+        file_path, selected_filter = QFileDialog.getOpenFileName(self, t('label_bg_image'), '', file_filter)
         if file_path:
             self.bg_input.setText(file_path)
+            # Detectar tipo de archivo
+            if file_path.lower().endswith('.gif'):
+                self.bg_type_combo.setCurrentIndex(1)  # Animated
+            else:
+                self.bg_type_combo.setCurrentIndex(0)  # Static
 
     def get_data(self):
         return {
             'background_image': self.bg_input.text().strip(),
+            'background_type': self.bg_type_combo.currentData(),
             'background_opacity': round(self.opacity_slider.value()/100.0, 3),
             'color_scheme': self._color_scheme
         }
@@ -1338,9 +1365,12 @@ class GameLibrary(QMainWindow):
         self._load_playtime_setting()
         
         self.bg_pixmap = None
+        self.bg_movie = None  # QMovie para GIF animados
         self.bg_opacity = 0.15
         self.bg_history = []
+        self.bg_type = 'static'  # static, animated, video
         self.color_scheme = {}
+        self._bg_paint_update_timer = None  # Timer para actualizar paintEvent durante animación
         # Arrastre simple
         self._drag_pos = None
         # Animación de minimizar/restaurar
@@ -1540,6 +1570,7 @@ class GameLibrary(QMainWindow):
             try:
                 data = json.load(open(self.theme_file, 'r', encoding='utf-8'))
                 bg_path = data.get('background_image')
+                self.bg_type = data.get('background_type', 'static')  # static, animated, video
                 self.bg_opacity = float(data.get('background_opacity', self.bg_opacity))
                 self.bg_history = list(data.get('background_history', []) or [])
                 self.color_scheme = data.get('color_scheme', {})
@@ -1550,14 +1581,53 @@ class GameLibrary(QMainWindow):
                 self.filter_platform = data.get('filter_platform') or None
                 self.filter_favorites = bool(data.get('filter_favorites', False))
                 self.sort_mode = data.get('sort_mode') or 'name_asc'
+                
                 if bg_path and os.path.exists(bg_path):
-                    pm = QPixmap(bg_path)
-                    if not pm.isNull():
-                        self.bg_pixmap = pm
+                    if self.bg_type == 'animated' and bg_path.lower().endswith('.gif'):
+                        # Cargar GIF como QMovie
+                        self._load_animated_background(bg_path)
+                    else:
+                        # Cargar estático
+                        pm = QPixmap(bg_path)
+                        if not pm.isNull():
+                            self.bg_pixmap = pm
+                            if self.bg_movie:
+                                self.bg_movie.stop()
+                                self.bg_movie = None
             except Exception as e:
                 print('Error cargando theme:', e)
 
-    def save_theme(self, background_image, background_opacity, color_scheme=None):
+    def _load_animated_background(self, gif_path):
+        """Carga un GIF animado como fondo"""
+        try:
+            if self.bg_movie:
+                self.bg_movie.stop()
+            
+            self.bg_movie = QMovie(gif_path)
+            self.bg_movie.setCacheMode(QMovie.CacheAll)
+            
+            # Conectar señal para redibujar cuando cambia el frame
+            self.bg_movie.frameChanged.connect(self.update)
+            
+            # Iniciar reproducción
+            self.bg_movie.start()
+            
+            # Limpiar pixmap estático
+            self.bg_pixmap = None
+            
+            # Crear timer para actualizar cada frame (aprox 30fps)
+            if not self._bg_paint_update_timer:
+                self._bg_paint_update_timer = QTimer(self)
+                self._bg_paint_update_timer.timeout.connect(self.update)
+                self._bg_paint_update_timer.setInterval(33)  # ~30fps
+            
+            if not self._bg_paint_update_timer.isActive():
+                self._bg_paint_update_timer.start()
+                
+        except Exception as e:
+            print(f'Error cargando GIF animado: {e}')
+
+    def save_theme(self, background_image, background_opacity, color_scheme=None, background_type='static'):
         # Actualizar historial (máx 8, sin duplicados, vacío si no hay imagen)
         new_hist = list(self.bg_history or [])
         if background_image:
@@ -1581,6 +1651,7 @@ class GameLibrary(QMainWindow):
         payload = existing_data.copy()
         payload.update({
             'background_image': background_image if background_image else '',
+            'background_type': background_type,
             'background_opacity': background_opacity,
             'background_history': new_hist,
             'color_scheme': color_scheme or {},
@@ -1654,6 +1725,7 @@ class GameLibrary(QMainWindow):
             if not self.theme_file.exists():
                 json.dump({
                     'background_image': '',
+                    'background_type': 'static',
                     'background_opacity': 0.15,
                     'background_history': [],
                     'color_scheme': ColorPickerDialog(None).default_colors(),
@@ -2719,7 +2791,17 @@ class GameLibrary(QMainWindow):
 
     def paintEvent(self, event):
         super().paintEvent(event)
-        if self.bg_pixmap:
+        if self.bg_movie and self.bg_movie.isValid():
+            # Dibujar GIF animado
+            painter = QPainter(self)
+            painter.setRenderHint(QPainter.SmoothPixmapTransform)
+            current_pixmap = self.bg_movie.currentPixmap()
+            if not current_pixmap.isNull():
+                scaled = current_pixmap.scaled(self.size(), Qt.KeepAspectRatioByExpanding, Qt.SmoothTransformation)
+                painter.setOpacity(self.bg_opacity)
+                painter.drawPixmap(0, 0, scaled)
+        elif self.bg_pixmap:
+            # Dibujar imagen estática
             painter = QPainter(self)
             painter.setRenderHint(QPainter.SmoothPixmapTransform)
             scaled = self.bg_pixmap.scaled(self.size(), Qt.KeepAspectRatioByExpanding, Qt.SmoothTransformation)
@@ -2744,7 +2826,7 @@ class GameLibrary(QMainWindow):
             pass
         if dlg.exec_() == QDialog.Accepted:
             data = dlg.get_data()
-            self.save_theme(data['background_image'], data['background_opacity'], data.get('color_scheme'))
+            self.save_theme(data['background_image'], data['background_opacity'], data.get('color_scheme'), data.get('background_type', 'static'))
         
     def reload_ui_text(self, lang=None):
         """Recarga todos los strings de la UI cuando cambia el idioma"""
