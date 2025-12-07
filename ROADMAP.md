@@ -53,8 +53,8 @@
 
 ### 🖼️ Animated Background Support
 - [x] **GIF Format Support** - Play animated GIFs as background
-- [ ] **Video Format Support** - WebM/MP4 backgrounds (optional)
-- [x] **Background Type Selector** - Toggle static/animated in settings
+- [x] **Video Format Support** - WebM/MP4 backgrounds (muted)
+- [x] **Background Type Selector** - Toggle static/animated/video in settings
 - [x] **Performance Optimization** - Efficient GIF rendering with QMovie
 - [x] **Frame Update Timer** - Smooth playback (~30fps)
 

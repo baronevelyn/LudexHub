@@ -21,7 +21,7 @@ try:
     from PyQt5.QtWinExtras import QtWin
 except Exception:
     QtWin = None
-from PyQt5.QtGui import QPixmap, QIcon, QPalette, QColor, QFont, QPainter, QBrush, QMovie
+from PyQt5.QtGui import QPixmap, QIcon, QPalette, QColor, QFont, QPainter, QBrush, QMovie, QImage
 
 
 class ImageLoader(QThread):
@@ -773,13 +773,14 @@ class ColorPickerDialog(QDialog):
     """Diálogo de configuración con pestañas para colores, fondo e idioma"""
     language_changed = pyqtSignal(str)  # Emite cuando cambia el idioma
     
-    def __init__(self, parent=None, current_bg='', current_opacity=0.15, color_scheme=None):
+    def __init__(self, parent=None, current_bg='', current_opacity=0.15, color_scheme=None, current_bg_type='static'):
         super().__init__(parent)
         self.setWindowTitle(t('dialog_settings'))
         self.setFixedSize(850, 650)
         self._current_bg = current_bg
         self._current_opacity = current_opacity
         self._color_scheme = color_scheme or self.default_colors()
+        self._current_bg_type = current_bg_type or 'static'
         self._color_buttons = {}
         self.setup_ui()
 
@@ -1128,7 +1129,13 @@ class ColorPickerDialog(QDialog):
         """)
         self.bg_type_combo.addItem(t('bg_type_static'), 'static')
         self.bg_type_combo.addItem(t('bg_type_animated'), 'animated')
-        self.bg_type_combo.setCurrentIndex(0)
+        self.bg_type_combo.addItem(t('bg_type_video'), 'video')
+        # Seleccionar tipo actual
+        current_idx = self.bg_type_combo.findData(self._current_bg_type)
+        if current_idx >= 0:
+            self.bg_type_combo.setCurrentIndex(current_idx)
+        else:
+            self.bg_type_combo.setCurrentIndex(0)
         type_layout.addWidget(self.bg_type_combo)
         type_layout.addStretch()
         layout.addWidget(type_container)
@@ -1282,15 +1289,21 @@ class ColorPickerDialog(QDialog):
             btn.setStyleSheet(f"QPushButton#colorBtn {{ background:{color}; color:white; border:2px solid #2d3748; }}")
 
     def pick_background(self):
-        file_filter = 'All Supported (*.png *.jpg *.jpeg *.bmp *.gif);;Static Images (*.png *.jpg *.jpeg *.bmp);;Animated GIF (*.gif)'
+        file_filter = 'All Supported (*.png *.jpg *.jpeg *.bmp *.gif *.mp4 *.webm *.mkv *.mov);;Static Images (*.png *.jpg *.jpeg *.bmp);;Animated GIF (*.gif);;Video (*.mp4 *.webm *.mkv *.mov)'
         file_path, selected_filter = QFileDialog.getOpenFileName(self, t('label_bg_image'), '', file_filter)
         if file_path:
             self.bg_input.setText(file_path)
             # Detectar tipo de archivo
-            if file_path.lower().endswith('.gif'):
-                self.bg_type_combo.setCurrentIndex(1)  # Animated
+            lower = file_path.lower()
+            if lower.endswith('.gif'):
+                idx = self.bg_type_combo.findData('animated')
+                self.bg_type_combo.setCurrentIndex(idx if idx >= 0 else 0)
+            elif lower.endswith(('.mp4', '.webm', '.mkv', '.mov')):
+                idx = self.bg_type_combo.findData('video')
+                self.bg_type_combo.setCurrentIndex(idx if idx >= 0 else 0)
             else:
-                self.bg_type_combo.setCurrentIndex(0)  # Static
+                idx = self.bg_type_combo.findData('static')
+                self.bg_type_combo.setCurrentIndex(idx if idx >= 0 else 0)
 
     def get_data(self):
         return {
@@ -1323,7 +1336,18 @@ class ColorPickerDialog(QDialog):
                 thumb.setIconSize(QSize(150,100))
             thumb.setToolTip(path)
             def make_handler(p=path):
-                return lambda: self.bg_input.setText(p)
+                def handler():
+                    self.bg_input.setText(p)
+                    lower = p.lower()
+                    if lower.endswith('.gif'):
+                        idx = self.bg_type_combo.findData('animated')
+                    elif lower.endswith(('.mp4', '.webm', '.mkv', '.mov')):
+                        idx = self.bg_type_combo.findData('video')
+                    else:
+                        idx = self.bg_type_combo.findData('static')
+                    if idx is not None and idx >= 0:
+                        self.bg_type_combo.setCurrentIndex(idx)
+                return handler
             thumb.clicked.connect(make_handler())
             r, c = divmod(idx, 4)
             self.history_grid.addWidget(thumb, r, c)
@@ -1366,6 +1390,8 @@ class GameLibrary(QMainWindow):
         
         self.bg_pixmap = None
         self.bg_movie = None  # QMovie para GIF animados
+        self.bg_video_cap = None  # cv2.VideoCapture para videos
+        self.bg_video_timer = None  # Timer para refrescar frames de video
         self.bg_opacity = 0.15
         self.bg_history = []
         self.bg_type = 'static'  # static, animated, video
@@ -1586,20 +1612,29 @@ class GameLibrary(QMainWindow):
                     if self.bg_type == 'animated' and bg_path.lower().endswith('.gif'):
                         # Cargar GIF como QMovie
                         self._load_animated_background(bg_path)
+                    elif self.bg_type == 'video':
+                        # Cargar video como fondo
+                        self._load_video_background(bg_path)
                     else:
                         # Cargar estático
                         pm = QPixmap(bg_path)
                         if not pm.isNull():
-                            self.bg_pixmap = pm
+                            # Detener recursos previos (gif/video)
                             if self.bg_movie:
                                 self.bg_movie.stop()
                                 self.bg_movie = None
+                            self._stop_video_background()
+                            if self._bg_paint_update_timer and self._bg_paint_update_timer.isActive():
+                                self._bg_paint_update_timer.stop()
+                            self.bg_pixmap = pm
             except Exception as e:
                 print('Error cargando theme:', e)
 
     def _load_animated_background(self, gif_path):
         """Carga un GIF animado como fondo"""
         try:
+            # Detener video si estaba activo
+            self._stop_video_background()
             if self.bg_movie:
                 self.bg_movie.stop()
             
@@ -1626,6 +1661,93 @@ class GameLibrary(QMainWindow):
                 
         except Exception as e:
             print(f'Error cargando GIF animado: {e}')
+
+    def _stop_video_background(self):
+        """Detiene y libera recursos de fondo de video"""
+        try:
+            if self.bg_video_timer and self.bg_video_timer.isActive():
+                self.bg_video_timer.stop()
+        except Exception:
+            pass
+        self.bg_video_timer = None
+        try:
+            if self.bg_video_cap:
+                self.bg_video_cap.release()
+        except Exception:
+            pass
+        self.bg_video_cap = None
+
+    def _load_video_background(self, video_path):
+        """Carga un video como fondo (sin audio) usando OpenCV"""
+        try:
+            # Detener GIF/animaciones previas
+            if self.bg_movie:
+                self.bg_movie.stop()
+                self.bg_movie = None
+            if self._bg_paint_update_timer and self._bg_paint_update_timer.isActive():
+                self._bg_paint_update_timer.stop()
+
+            # Detener video previo
+            self._stop_video_background()
+
+            try:
+                import cv2
+            except ImportError:
+                print('OpenCV no está instalado; fondo de video no disponible')
+                return
+
+            cap = cv2.VideoCapture(video_path)
+            if not cap.isOpened():
+                print(f'No se pudo abrir el video: {video_path}')
+                return
+
+            fps = cap.get(cv2.CAP_PROP_FPS) or 0
+            if fps <= 1 or fps > 120:
+                fps = 30
+            interval = max(15, int(1000 / fps))
+
+            self.bg_video_cap = cap
+            if not self.bg_video_timer:
+                self.bg_video_timer = QTimer(self)
+                self.bg_video_timer.timeout.connect(self._update_video_frame)
+            self.bg_video_timer.setInterval(interval)
+            self.bg_video_timer.start()
+
+            # Limpiar pixmap inicial; se actualizará en el siguiente frame
+            self.bg_pixmap = None
+            self._update_video_frame()
+        except Exception as e:
+            print(f'Error cargando video: {e}')
+
+    def _update_video_frame(self):
+        """Lee el siguiente frame del video y actualiza el fondo"""
+        if not self.bg_video_cap:
+            if self.bg_video_timer:
+                self.bg_video_timer.stop()
+            return
+        try:
+            import cv2
+        except ImportError:
+            if self.bg_video_timer:
+                self.bg_video_timer.stop()
+            return
+
+        ret, frame = self.bg_video_cap.read()
+        if not ret:
+            # Reiniciar al inicio
+            self.bg_video_cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+            ret, frame = self.bg_video_cap.read()
+            if not ret:
+                if self.bg_video_timer:
+                    self.bg_video_timer.stop()
+                return
+
+        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        h, w, _ = frame.shape
+        bytes_per_line = 3 * w
+        img = QImage(frame.data, w, h, bytes_per_line, QImage.Format_RGB888).copy()
+        self.bg_pixmap = QPixmap.fromImage(img)
+        self.update()
 
     def save_theme(self, background_image, background_opacity, color_scheme=None, background_type='static'):
         # Actualizar historial (máx 8, sin duplicados, vacío si no hay imagen)
@@ -2817,7 +2939,7 @@ class GameLibrary(QMainWindow):
                     bg = data.get('background_image', '') or ''
             except Exception:
                 pass
-        dlg = ColorPickerDialog(self, current_bg=bg, current_opacity=self.bg_opacity, color_scheme=self.color_scheme)
+        dlg = ColorPickerDialog(self, current_bg=bg, current_opacity=self.bg_opacity, color_scheme=self.color_scheme, current_bg_type=self.bg_type)
         # Conectar señal de cambio de idioma para recargar UI
         dlg.language_changed.connect(self.reload_ui_text)
         try:
