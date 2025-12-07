@@ -13,7 +13,7 @@ from i18n import I18n, t
 from font_installer import ensure_fonts_installed
 
 # Version and application info
-__version__ = "1.1.0"
+__version__ = "1.1.1"
 __editor__ = "CallMeEden"
 from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
                              QHBoxLayout, QGridLayout, QPushButton, QLabel, 
@@ -3013,37 +3013,60 @@ class GameLibrary(QMainWindow):
 
     def _startup_shortcut_path(self) -> Path:
         appdata = os.environ.get('APPDATA', str(Path.home() / 'AppData' / 'Roaming'))
-        return Path(appdata) / 'Microsoft' / 'Windows' / 'Start Menu' / 'Programs' / 'Startup' / 'GameLibrary.lnk'
+        return Path(appdata) / 'Microsoft' / 'Windows' / 'Start Menu' / 'Programs' / 'Startup' / 'LudexHub.lnk'
 
     def _set_startup_on_boot(self, enable: bool):
         """Crea o elimina el acceso directo en la carpeta de inicio."""
         try:
             # Determinar ejecutable objetivo
             if getattr(sys, 'frozen', False):
+                # Ejecutando como .exe empaquetado
                 target_exe = sys.executable
             else:
-                candidate = Path(__file__).parent / 'release' / '1.0' / 'GameLibrary.exe'
-                target_exe = str(candidate) if candidate.exists() else sys.executable
+                # Ejecutando desde código fuente - usar python directo
+                target_exe = sys.executable
+                
             shortcut_path = self._startup_shortcut_path()
+            
             if enable:
                 try:
-                    import win32com.client
-                    shell = win32com.client.Dispatch('WScript.Shell')
-                    sh = shell.CreateShortcut(str(shortcut_path))
-                    sh.TargetPath = target_exe
-                    sh.WorkingDirectory = str(Path(target_exe).parent)
-                    sh.IconLocation = target_exe
-                    sh.Save()
+                    # Intentar con win32com primero (más confiable)
+                    try:
+                        import win32com.client
+                        shell = win32com.client.Dispatch('WScript.Shell')
+                        sh = shell.CreateShortcut(str(shortcut_path))
+                        sh.TargetPath = target_exe
+                        sh.WorkingDirectory = str(Path(target_exe).parent)
+                        sh.IconLocation = target_exe
+                        sh.Save()
+                        print(f'Startup shortcut creado en: {shortcut_path}')
+                    except ImportError:
+                        # Fallback: crear acceso directo con VBScript
+                        import subprocess
+                        vbs_script = f'''
+Set objShell = CreateObject("WScript.Shell")
+Set objLink = objShell.CreateShortcut("{str(shortcut_path)}")
+objLink.TargetPath = "{target_exe}"
+objLink.WorkingDirectory = "{str(Path(target_exe).parent)}"
+objLink.IconLocation = "{target_exe}"
+objLink.Save()
+'''
+                        vbs_path = Path.home() / '.ludexhub_startup.vbs'
+                        vbs_path.write_text(vbs_script)
+                        subprocess.run(['cscript', str(vbs_path)], check=False)
+                        vbs_path.unlink()
+                        print(f'Startup shortcut creado via VBScript')
                 except Exception as e:
-                    print('Fallo creando acceso directo de inicio:', e)
+                    print(f'Error creando acceso directo de inicio: {e}')
             else:
                 try:
                     if shortcut_path.exists():
                         shortcut_path.unlink()
-                except Exception:
-                    pass
+                        print(f'Startup shortcut eliminado')
+                except Exception as e:
+                    print(f'Error eliminando shortcut: {e}')
         except Exception as e:
-            print('Startup setup error:', e)
+            print(f'Startup setup error: {e}')
     
     def _set_process_priority(self, priority: str):
         """Establece la prioridad del proceso actual."""
