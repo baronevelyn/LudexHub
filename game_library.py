@@ -2458,18 +2458,31 @@ class GameLibrary(QMainWindow):
         
         # Establecer icono de la aplicación
         # Buscar icono en la ubicación correcta (PyInstaller o desarrollo)
+        icon_found = False
         if getattr(sys, 'frozen', False):
             # Ejecutando como .exe empaquetado
-            icon_path = Path(sys._MEIPASS) / 'icon.ico'
+            icon_path = Path(sys._MEIPASS) / 'Ludex.ico'
+            if icon_path.exists():
+                icon_found = True
+            else:
+                # Fallback a icon.ico si existe
+                icon_path = Path(sys._MEIPASS) / 'icon.ico'
+                icon_found = icon_path.exists()
         else:
             # Ejecutando desde código fuente
-            icon_path = Path(__file__).parent / 'icon.ico'
+            icon_path = Path(__file__).parent / 'Ludex.ico'
+            if icon_path.exists():
+                icon_found = True
+            else:
+                # Fallback a icon.ico si existe
+                icon_path = Path(__file__).parent / 'icon.ico'
+                icon_found = icon_path.exists()
         
-        if icon_path.exists():
+        if icon_found:
             self.setWindowIcon(QIcon(str(icon_path)))
             # Configurar icono en la barra de tareas de Windows
             try:
-                myappid = 'com.eden.ludexhub.1.0'
+                myappid = 'baronevelyn.ludexhub.1.1.0'
                 ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
             except Exception:
                 pass
