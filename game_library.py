@@ -4773,10 +4773,11 @@ class GameLibrary(QMainWindow):
 
 
 def main():
-    # Instalar fuentes requeridas antes de inicializar la aplicación
+    app = QApplication(sys.argv)
+    
+    # Instalar fuentes requeridas DESPUÉS de crear QApplication
     ensure_fonts_installed()
     
-    app = QApplication(sys.argv)
     app.setStyle('Fusion')
     
     # Paleta oscura
