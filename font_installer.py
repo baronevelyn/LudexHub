@@ -1,11 +1,10 @@
-"""Módulo para instalar fuentes del sistema automáticamente en Windows"""
+"""Módulo para instalar fuentes del sistema automáticamente"""
 
 import os
 import sys
 import shutil
 import zipfile
 import tempfile
-import subprocess
 from pathlib import Path
 
 try:
@@ -13,218 +12,138 @@ try:
 except ImportError:
     requests = None
 
-# Diccionario de fuentes con URLs de descarga (Google Fonts)
+# URLs para descargar fuentes (solo las que funcionan)
 FONTS_TO_INSTALL = {
     'JetBrains Mono': 'https://github.com/JetBrains/JetBrainsMono/releases/download/v2.304/JetBrainsMono-2.304.zip',
     'Inter': 'https://github.com/rsms/inter/releases/download/v4.0/Inter-4.0.zip',
-    'Roboto': 'https://fonts.google.com/download?family=Roboto',
-    'Poppins': 'https://fonts.google.com/download?family=Poppins',
-    'Space Mono': 'https://fonts.google.com/download?family=Space%20Mono',
-    'Open Sans': 'https://fonts.google.com/download?family=Open%20Sans',
 }
 
-# URLs alternativas desde Google Fonts API
-GOOGLE_FONTS_URLS = {
-    'JetBrains Mono': 'https://fonts.google.com/download?family=JetBrains%20Mono',
-    'Inter': 'https://fonts.google.com/download?family=Inter',
-    'Roboto': 'https://fonts.google.com/download?family=Roboto',
-    'Poppins': 'https://fonts.google.com/download?family=Poppins',
-    'Space Mono': 'https://fonts.google.com/download?family=Space%20Mono',
-    'Open Sans': 'https://fonts.google.com/download?family=Open%20Sans',
+# Fuentes fallback si no se pueden descargar
+FONT_FALLBACKS = {
+    'JetBrains Mono': 'Courier New',
+    'Inter': 'Arial',
+    'Roboto': 'Segoe UI',
+    'Poppins': 'Tahoma',
+    'Space Mono': 'Courier New',
+    'Open Sans': 'Arial',
 }
 
 def get_fonts_directory():
-    """Obtener el directorio de fuentes del usuario (sin necesidad de admin)"""
-    if sys.platform == 'win32':
-        # Usar AppData\Local\Microsoft\Windows\Fonts en lugar de C:\Windows\Fonts
-        fonts_dir = Path.home() / 'AppData' / 'Local' / 'Microsoft' / 'Windows' / 'Fonts'
-        fonts_dir.mkdir(parents=True, exist_ok=True)
-        return fonts_dir
-    elif sys.platform == 'darwin':  # macOS
-        fonts_dir = Path.home() / 'Library' / 'Fonts'
-        fonts_dir.mkdir(parents=True, exist_ok=True)
-        return fonts_dir
-    else:  # Linux
-        fonts_dir = Path.home() / '.local' / 'share' / 'fonts'
-        fonts_dir.mkdir(parents=True, exist_ok=True)
-        return fonts_dir
+    """Obtener el directorio de fuentes de la aplicación"""
+    fonts_dir = Path(__file__).parent / 'fonts'
+    fonts_dir.mkdir(exist_ok=True)
+    return fonts_dir
 
-def font_already_installed(font_name):
-    """Verificar si una fuente ya está instalada en el sistema"""
+def font_available(font_name):
+    """Verificar si una fuente está disponible (descargada o en sistema)"""
+    fonts_dir = get_fonts_directory()
+    
+    # Buscar en directorio local
+    for font_file in list(fonts_dir.glob('*.ttf')) + list(fonts_dir.glob('*.otf')):
+        if font_name.lower() in font_file.name.lower():
+            return True
+    
+    # Buscar en sistema
     try:
         from PyQt5.QtGui import QFontDatabase
         db = QFontDatabase()
-        available_fonts = db.families()
-        return font_name in available_fonts
-    except Exception as e:
-        print(f"[WARN] Error verificando fuente {font_name}: {e}")
-        return False
-
-def install_font_windows(font_path):
-    """Instalar una fuente en Windows copiándola a la carpeta de fuentes del usuario"""
-    try:
-        import winreg
-        
-        # Copiar la fuente a la carpeta de Fonts del usuario (sin necesidad de admin)
-        fonts_dir = get_fonts_directory()
-        font_name = os.path.basename(font_path)
-        dest_path = fonts_dir / font_name
-        
-        if not dest_path.exists():
-            shutil.copy(font_path, dest_path)
-            print(f"[OK] Fuente instalada: {font_name}")
-        else:
-            print(f"[OK] Fuente ya existe: {font_name}")
-        
-        # Intentar registrar en el registro de Windows (opcional, sin fallar si no puede)
-        try:
-            font_reg_name = font_name.replace('.ttf', '').replace('.otf', '')
-            try:
-                key = winreg.OpenKey(
-                    winreg.HKEY_LOCAL_MACHINE,
-                    r'SOFTWARE\Microsoft\Windows NT\CurrentVersion\Fonts',
-                    0,
-                    winreg.KEY_SET_VALUE
-                )
-                winreg.SetValueEx(key, font_reg_name, 0, winreg.REG_SZ, str(dest_path))
-                winreg.CloseKey(key)
-            except PermissionError:
-                # Intentar con HKEY_CURRENT_USER
-                key = winreg.OpenKey(
-                    winreg.HKEY_CURRENT_USER,
-                    r'SOFTWARE\Microsoft\Windows NT\CurrentVersion\Fonts',
-                    0,
-                    winreg.KEY_SET_VALUE
-                )
-                winreg.SetValueEx(key, font_reg_name, 0, winreg.REG_SZ, str(dest_path))
-                winreg.CloseKey(key)
-        except Exception as e:
-            # No fallar si no puede registrar, la fuente ya está instalada en la carpeta
-            pass
-        
-        return True
-    except Exception as e:
-        print(f"[ERROR] Error instalando fuente {font_path}: {e}")
-        return False
+        available = db.families()
+        return font_name in available
+    except:
+        pass
+    
+    return False
 
 def download_and_install_font(font_name, url):
-    """Descargar e instalar una fuente desde una URL"""
+    """Descargar e instalar una fuente"""
     if not requests:
-        print(f"[WARN] 'requests' no instalado. Saltando descarga de {font_name}")
         return False
     
     try:
         print(f"[DL] Descargando {font_name}...")
-        
-        # Descargar
-        headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-        }
+        headers = {'User-Agent': 'Mozilla/5.0'}
         response = requests.get(url, headers=headers, timeout=30)
         response.raise_for_status()
         
-        # Guardar en temporal
+        fonts_dir = get_fonts_directory()
         tmp_path = None
-        content = response.content
+        
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.zip') as tmp:
+            tmp.write(response.content)
+            tmp_path = tmp.name
         
         try:
-            # Intentar como ZIP
-            with tempfile.NamedTemporaryFile(delete=False, suffix='.zip') as tmp:
-                tmp.write(content)
-                tmp_path = tmp.name
-            
-            # Extraer y buscar archivos TTF/OTF
-            with tempfile.TemporaryDirectory() as extract_dir:
-                try:
-                    with zipfile.ZipFile(tmp_path, 'r') as zip_ref:
-                        zip_ref.extractall(extract_dir)
-                    
-                    # Buscar fuentes
+            with zipfile.ZipFile(tmp_path, 'r') as zip_ref:
+                with tempfile.TemporaryDirectory() as extract_dir:
+                    zip_ref.extractall(extract_dir)
                     extract_path = Path(extract_dir)
-                    font_files = list(extract_path.rglob('*.ttf')) + list(extract_path.rglob('*.otf'))
+                    fonts = list(extract_path.rglob('*.ttf'))[:2] + list(extract_path.rglob('*.otf'))[:2]
                     
-                    if font_files:
-                        # Instalar todas las fuentes encontradas
-                        for font_file in font_files:
-                            if sys.platform == 'win32':
-                                install_font_windows(str(font_file))
-                            else:
-                                shutil.copy(font_file, get_fonts_directory() / font_file.name)
-                                print(f"[OK] Fuente instalada: {font_file.name}")
+                    for font_file in fonts:
+                        dest = fonts_dir / font_file.name
+                        shutil.copy(font_file, dest)
+                    
+                    if fonts:
+                        print(f"[OK] {len(fonts)} archivo(s) descargado(s): {font_name}")
                         return True
-                except zipfile.BadZipFile:
-                    # No es ZIP, intentar como TTF/OTF directo
-                    print(f"[INFO] Archivo no es ZIP, intentando instalar directamente...")
-                    raise
+        except:
+            pass
         
-        except zipfile.BadZipFile:
-            # Instalar directamente como TTF/OTF
-            fonts_dir = get_fonts_directory()
-            
-            # Determinar extensión basada en el nombre o intentar ambas
-            for ext in ['.ttf', '.otf']:
-                font_name_with_ext = f"{font_name.replace(' ', '_')}{ext}"
-                with tempfile.NamedTemporaryFile(delete=False, suffix=ext) as tmp:
-                    tmp.write(content)
-                    tmp_path = tmp.name
-                
-                try:
-                    if sys.platform == 'win32':
-                        install_font_windows(tmp_path)
-                    else:
-                        dest_path = fonts_dir / font_name_with_ext
-                        shutil.copy(tmp_path, dest_path)
-                        print(f"[OK] Fuente instalada: {font_name_with_ext}")
-                    return True
-                except Exception as e:
-                    print(f"[DEBUG] Intento con {ext} fallido: {e}")
-                    continue
-            
-            print(f"[ERROR] No se pudo instalar {font_name} en ningún formato")
-            return False
-        
+        return False
+    
     except Exception as e:
-        print(f"[ERROR] Error descargando {font_name}: {e}")
+        print(f"[SKIP] {font_name}: {str(e)[:40]}")
         return False
     finally:
-        # Limpiar archivo temporal
         try:
             if tmp_path and os.path.exists(tmp_path):
                 os.remove(tmp_path)
         except:
             pass
 
+def load_application_fonts():
+    """Cargar fuentes locales en QFontDatabase"""
+    try:
+        from PyQt5.QtGui import QFontDatabase
+        fonts_dir = get_fonts_directory()
+        count = 0
+        
+        for font_file in sorted(fonts_dir.glob('*.ttf')) + sorted(fonts_dir.glob('*.otf')):
+            if QFontDatabase.addApplicationFont(str(font_file)) >= 0:
+                count += 1
+        
+        if count > 0:
+            print(f"[OK] {count} fuente(s) cargada(s) localmente")
+        return count
+    except:
+        return 0
+
 def ensure_fonts_installed():
-    """Asegurar que todas las fuentes requeridas esten instaladas"""
-    print("\n[INFO] Verificando fuentes del sistema...")
+    """Asegurar disponibilidad de fuentes"""
+    print("\n[INFO] Iniciando sistema de fuentes...")
     
-    fonts_to_download = {}
-    
-    for font_name in FONTS_TO_INSTALL.keys():
-        if not font_already_installed(font_name):
-            print(f"[WARN] Fuente no encontrada: {font_name}")
-            fonts_to_download[font_name] = GOOGLE_FONTS_URLS.get(
-                font_name, 
-                FONTS_TO_INSTALL[font_name]
-            )
+    # Verificar fuentes
+    missing = []
+    for font_name in list(FONTS_TO_INSTALL.keys()) + list(FONT_FALLBACKS.keys()):
+        if not font_available(font_name):
+            missing.append(font_name)
+            fallback = FONT_FALLBACKS.get(font_name, 'Arial')
+            print(f"[INFO] {font_name} usa fallback: {fallback}")
         else:
-            print(f"[OK] Fuente ya instalada: {font_name}")
+            print(f"[OK] {font_name} disponible")
     
-    # Si faltan fuentes y tenemos requests, intentar descargarlas
-    if fonts_to_download:
-        if requests:
-            print(f"\n[INFO] Instalando {len(fonts_to_download)} fuente(s) faltante(s)...")
-            for font_name, url in fonts_to_download.items():
+    # Descargar solo las que faltan Y tenemos URL
+    if missing and requests:
+        for font_name, url in FONTS_TO_INSTALL.items():
+            if font_name in missing:
                 download_and_install_font(font_name, url)
-            print("[OK] Instalacion de fuentes completada\n")
-        else:
-            print("\n[WARN] Las siguientes fuentes no estan instaladas:")
-            for font_name in fonts_to_download.keys():
-                print(f"  - {font_name}")
-            print("\nInstalacion manual recomendada o ejecutar: pip install requests")
-    else:
-        print("[OK] Todas las fuentes requeridas estan instaladas\n")
+    
+    # Cargar fuentes locales
+    print("\n[INFO] Cargando fuentes locales...")
+    load_application_fonts()
+    print()
 
 if __name__ == '__main__':
+    from PyQt5.QtWidgets import QApplication
+    app = QApplication(sys.argv)
     ensure_fonts_installed()
-
