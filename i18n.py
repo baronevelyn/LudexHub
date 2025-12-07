@@ -6,6 +6,7 @@ TRANSLATIONS = {
         # Ventana principal
         'app_title': 'Mi Biblioteca',
         'app_title_alt': 'Game Library v1.0',
+        'label_loading': 'Cargando...',
         
         # Botones principales
         'btn_add_game': '+ Agregar',
@@ -217,6 +218,7 @@ TRANSLATIONS = {
         # Ventana principal
         'app_title': 'My Library',
         'app_title_alt': 'Game Library v1.0',
+        'label_loading': 'Loading...',
         
         # Botones principales
         'btn_add_game': '+ Add',

@@ -51,6 +51,74 @@ class ImageLoader(QThread):
             print(f"Error al cargar imagen {self.url}: {e}")
 
 
+class SplashScreen(QWidget):
+    """Pantalla de carga con icono y texto 'Cargando...'"""
+    
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowFlags(Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.SplashScreen)
+        self.setAttribute(Qt.WA_TranslucentBackground)
+        
+        # Tamaño fijo
+        self.setFixedSize(300, 300)
+        
+        # Centrar en pantalla
+        screen = QApplication.primaryScreen().geometry()
+        x = (screen.width() - 300) // 2
+        y = (screen.height() - 300) // 2
+        self.move(x, y)
+        
+        # Layout
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(20)
+        layout.addStretch()
+        
+        # Cargar icono
+        try:
+            if getattr(sys, 'frozen', False):
+                icon_path = Path(sys._MEIPASS) / 'Ludex.ico'
+                if not icon_path.exists():
+                    icon_path = Path(sys._MEIPASS) / 'icon.ico'
+            else:
+                icon_path = Path(__file__).parent / 'Ludex.ico'
+                if not icon_path.exists():
+                    icon_path = Path(__file__).parent / 'icon.ico'
+            
+            if icon_path.exists():
+                pixmap = QPixmap(str(icon_path))
+                pixmap = pixmap.scaledToWidth(120, Qt.SmoothTransformation)
+                icon_label = QLabel()
+                icon_label.setPixmap(pixmap)
+                icon_label.setAlignment(Qt.AlignCenter)
+                layout.addWidget(icon_label)
+        except Exception as e:
+            print(f"Error cargando icono splash: {e}")
+        
+        # Texto "Cargando..."
+        text_label = QLabel(t('label_loading') if 'label_loading' in dir() else "Cargando...")
+        text_label.setAlignment(Qt.AlignCenter)
+        text_label.setStyleSheet("""
+            QLabel {
+                font-size: 16px;
+                color: #e8eaed;
+                font-weight: bold;
+                font-family: 'Segoe UI';
+            }
+        """)
+        layout.addWidget(text_label)
+        
+        layout.addStretch()
+        
+        # Fondo oscuro
+        self.setStyleSheet("""
+            SplashScreen {
+                background-color: #0f1419;
+                border-radius: 12px;
+            }
+        """)
+
+
 class GameCard(QFrame):
     """Widget personalizado para mostrar cada juego"""
     _custom_colors = {}
@@ -2491,13 +2559,19 @@ class GameLibrary(QMainWindow):
             self.setWindowFlags(Qt.FramelessWindowHint | Qt.Window)
         except Exception:
             pass
+        
+        # Mostrar splash screen
+        self.splash = SplashScreen()
+        self.splash.show()
+        QApplication.processEvents()
+        
+        # Setup UI rápido (sin datos)
         self.setup_ui()
         self.apply_color_scheme_fixed()
-        self.render_games()
         self.enable_shadow()
         
-        # Check automático de updates al iniciar (si está habilitado)
-        QTimer.singleShot(2000, self._auto_check_updates)
+        # Hacer lazy loading de datos en background
+        QTimer.singleShot(100, self._lazy_load_data)
 
     def enable_shadow(self):
         try:
@@ -2510,6 +2584,36 @@ class GameLibrary(QMainWindow):
             self.centralWidget().setGraphicsEffect(shadow)
         except Exception as e:
             print("Shadow effect no disponible", e)
+
+    def _lazy_load_data(self):
+        """Carga datos en background sin bloquear la UI (lazy loading)"""
+        try:
+            # Cargar juegos
+            self.load_games()
+            
+            # Limpieza defensiva de duplicados
+            if hasattr(self, '_dedupe_games_by_appid') and self._dedupe_games_by_appid():
+                self.save_games()
+            
+            # Renderizar juegos
+            self.render_games()
+            
+            # Check automático de updates
+            self._auto_check_updates()
+            
+            # Mostrar ventana principal
+            self.show()
+            
+            # Cerrar splash screen
+            if hasattr(self, 'splash') and self.splash:
+                self.splash.close()
+                self.splash.deleteLater()
+                
+        except Exception as e:
+            print(f"Error en lazy loading: {e}")
+            self.show()
+            if hasattr(self, 'splash') and self.splash:
+                self.splash.close()
 
     def apply_color_scheme_fixed(self):
         """Aplicar el esquema de colores, tipografía y espaciado personalizado a toda la interfaz"""
