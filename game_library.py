@@ -16,12 +16,12 @@ from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
                              QMessageBox, QFileDialog, QMenu, QSlider, QToolButton, 
                              QProgressDialog, QCheckBox, QGraphicsOpacityEffect, QInputDialog,
                              QActionGroup)
-from PyQt5.QtCore import Qt, QSize, QThread, pyqtSignal, QFileInfo, QPropertyAnimation, QEasingCurve, QPoint, QEvent, QRect, QTimer, QMovie
+from PyQt5.QtCore import Qt, QSize, QThread, pyqtSignal, QFileInfo, QPropertyAnimation, QEasingCurve, QPoint, QEvent, QRect, QTimer
 try:
     from PyQt5.QtWinExtras import QtWin
 except Exception:
     QtWin = None
-from PyQt5.QtGui import QPixmap, QIcon, QPalette, QColor, QFont, QPainter, QBrush
+from PyQt5.QtGui import QPixmap, QIcon, QPalette, QColor, QFont, QPainter, QBrush, QMovie
 
 
 class ImageLoader(QThread):
