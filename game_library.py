@@ -826,6 +826,117 @@ class AddGameDialog(QDialog):
         }
 
 
+class PreviewWindow(QMainWindow):
+    """Ventana flotante independiente para preview en vivo del tema"""
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Theme Preview")
+        self.setFixedSize(320, 300)
+        self.setStyleSheet("""
+            QMainWindow { background-color:#1a1f2e; }
+            QLabel { color:#e8eaed; }
+        """)
+        
+        # Widget central
+        central = QWidget()
+        self.setCentralWidget(central)
+        layout = QVBoxLayout(central)
+        layout.setContentsMargins(16, 16, 16, 16)
+        layout.setSpacing(12)
+        
+        # Título
+        title = QLabel("Theme Preview")
+        title.setStyleSheet("font-size:14px; font-weight:bold; color:#e8eaed;")
+        layout.addWidget(title)
+        
+        # Crear una tarjeta de preview
+        self.preview_card = QFrame()
+        self.preview_card.setFrameStyle(QFrame.StyledPanel | QFrame.Raised)
+        self.preview_card.setFixedSize(270, 200)
+        card_layout = QVBoxLayout(self.preview_card)
+        card_layout.setContentsMargins(0, 0, 0, 0)
+        card_layout.setSpacing(0)
+        
+        # Imagen (ejemplo)
+        self.preview_image = QLabel()
+        self.preview_image.setFixedHeight(120)
+        self.preview_image.setAlignment(Qt.AlignCenter)
+        self.preview_image.setText("🎮")
+        self.preview_image.setStyleSheet("font-size:48px;")
+        card_layout.addWidget(self.preview_image)
+        
+        # Contenido (nombre, etc)
+        self.preview_content = QWidget()
+        content_layout = QVBoxLayout(self.preview_content)
+        content_layout.setContentsMargins(10, 10, 10, 10)
+        content_layout.setSpacing(4)
+        
+        self.preview_title = QLabel("Game Name")
+        self.preview_title.setStyleSheet("color:#e8eaed; font-weight:bold;")
+        content_layout.addWidget(self.preview_title)
+        
+        self.preview_path = QLabel("C:\\Games\\game.exe")
+        self.preview_path.setStyleSheet("color:#9aa0a6; font-size:10px;")
+        self.preview_path.setWordWrap(True)
+        content_layout.addWidget(self.preview_path)
+        
+        content_layout.addStretch()
+        card_layout.addWidget(self.preview_content)
+        
+        layout.addWidget(self.preview_card)
+        layout.addStretch()
+        
+        # Posicionar ventana a la derecha del diálogo
+        self.move(1000, 100)
+
+    def update_preview(self, theme):
+        """Actualiza el preview con los valores del tema actual"""
+        if not theme:
+            return
+        
+        c = theme
+        card_bg = c.get('card_bg', '#1a1f2e')
+        card_border = c.get('card_border', 'transparent')
+        card_radius = c.get('card_radius', 12)
+        border_width = c.get('border_width', 2)
+        font_family = c.get('font_family', 'Segoe UI')
+        card_title_size = c.get('card_title_size', 15)
+        secondary_size = c.get('secondary_size', 12)
+        text_primary = c.get('text_primary', '#e8eaed')
+        text_secondary = c.get('text_secondary', '#9aa0a6')
+        accent_start = c.get('accent_start', '#667eea')
+        accent_end = c.get('accent_end', '#764ba2')
+        
+        # Aplicar estilos al preview
+        self.preview_card.setStyleSheet(f"""
+            QFrame {{
+                background-color: {card_bg};
+                border-radius: {card_radius}px;
+                border: {border_width}px solid {card_border};
+            }}
+        """)
+        
+        self.preview_image.setStyleSheet(f"""
+            background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
+                stop:0 {accent_start}, stop:1 {accent_end});
+            font-size: 48px;
+        """)
+        
+        self.preview_content.setStyleSheet(f"background-color: {card_bg};")
+        
+        title_font = QFont(font_family, card_title_size, QFont.Bold)
+        self.preview_title.setFont(title_font)
+        self.preview_title.setStyleSheet(f"color:{text_primary};")
+        
+        path_font = QFont(font_family, secondary_size - 2)
+        self.preview_path.setFont(path_font)
+        self.preview_path.setStyleSheet(f"color:{text_secondary};")
+
+    def closeEvent(self, event):
+        """Permitir cerrar la ventana de preview de forma independiente"""
+        super().closeEvent(event)
+
+
 class ColorPickerDialog(QDialog):
     """Diálogo de configuración con pestañas para colores, fondo, tipografía e idioma"""
     language_changed = pyqtSignal(str)  # Emite cuando cambia el idioma
@@ -852,6 +963,11 @@ class ColorPickerDialog(QDialog):
         self._color_buttons = {}
         self._font_controls = {}
         self._spacing_controls = {}
+        
+        # Crear ventana de preview flotante
+        self.preview_window = PreviewWindow(self)
+        self.preview_window.show()
+        
         self.setup_ui()
 
     def default_theme(self):
@@ -960,15 +1076,30 @@ class ColorPickerDialog(QDialog):
         }
 
     def apply_preset(self, preset_name):
-        """Aplica un preset de tema y actualiza todos los botones de color"""
+        """Aplica un preset de tema y actualiza todos los controles"""
         presets = self.preset_presets()
-        if preset_name in presets:
-            self._color_scheme = presets[preset_name].copy()
-            for key, btn in self._color_buttons.items():
-                if key in self._color_scheme:
-                    color = self._color_scheme[key]
-                    btn.setText(color)
-                    btn.setStyleSheet(f"QPushButton#colorBtn {{ background:{color}; color:white; border:2px solid #2d3748; }}")
+        if preset_name not in presets:
+            return
+        
+        # Crear un tema completo basado en el preset y las tipografías/espaciado actuales
+        preset_colors = presets[preset_name].copy()
+        
+        # Mantener tipografía y espaciado del tema actual
+        new_theme = self._current_theme.copy()
+        # Actualizar solo los colores con los del preset
+        new_theme.update(preset_colors)
+        
+        self._current_theme = new_theme
+        self._color_scheme = preset_colors.copy()
+        
+        # Actualizar botones de color
+        for key, btn in self._color_buttons.items():
+            if key in self._color_scheme:
+                color = self._color_scheme[key]
+                btn.setText(color)
+                btn.setStyleSheet(f"QPushButton#colorBtn {{ background:{color}; color:white; border:2px solid #2d3748; }}")
+        
+        self.update_preview_window()  # Actualizar preview
 
     def setup_ui(self):
         from PyQt5.QtWidgets import QTabWidget, QColorDialog
@@ -1028,11 +1159,9 @@ class ColorPickerDialog(QDialog):
         tabs.addTab(self.create_typography_tab(), t('tab_typography'))
         tabs.addTab(self.create_spacing_tab(), t('tab_spacing_layout'))
         tabs.addTab(self.create_themes_tab(), t('label_custom_themes'))
-        tabs.addTab(self.create_preview_tab(), 'Preview')
         
-        # Conectar cambios en tabs para actualizar preview
-        self.preview_tab_obj = self.tabs_ref = tabs
-        tabs.currentChanged.connect(self.update_preview)
+        # Conectar cambios para actualizar preview en ventana flotante
+        tabs.currentChanged.connect(lambda: self.update_preview_window())
         
         root.addWidget(tabs)
 
@@ -1048,11 +1177,11 @@ class ColorPickerDialog(QDialog):
         buttons.addWidget(reset)
         cancel = QPushButton(t('btn_cancel'))
         cancel.setObjectName('secondary')
-        cancel.clicked.connect(self.reject)
+        cancel.clicked.connect(self.close_and_reject)
         buttons.addWidget(cancel)
         save = QPushButton(t('btn_save'))
         save.setObjectName('primary')
-        save.clicked.connect(self.accept)
+        save.clicked.connect(self.close_and_accept)
         buttons.addWidget(save)
         root.addWidget(button_container)
 
@@ -1396,7 +1525,9 @@ class ColorPickerDialog(QDialog):
             font_combo.setCurrentIndex(0)
         def on_font_change(idx):
             self._current_theme['font_family'] = font_combo.currentText()
+            self.update_preview_window()
         font_combo.currentIndexChanged.connect(on_font_change)
+        self._font_controls['font_family'] = font_combo
         layout.addWidget(font_combo)
 
         # Title Size
@@ -1410,7 +1541,9 @@ class ColorPickerDialog(QDialog):
         def on_title_change(v):
             self._current_theme['title_size'] = v
             title_label.setText(f"{v}px")
+            self.update_preview_window()
         title_slider.valueChanged.connect(on_title_change)
+        self._font_controls['title_size'] = (title_slider, title_label)
         layout.addWidget(title_slider)
         layout.addWidget(title_label)
 
@@ -1425,7 +1558,9 @@ class ColorPickerDialog(QDialog):
         def on_card_title_change(v):
             self._current_theme['card_title_size'] = v
             card_title_label.setText(f"{v}px")
+            self.update_preview_window()
         card_title_slider.valueChanged.connect(on_card_title_change)
+        self._font_controls['card_title_size'] = (card_title_slider, card_title_label)
         layout.addWidget(card_title_slider)
         layout.addWidget(card_title_label)
 
@@ -1440,7 +1575,9 @@ class ColorPickerDialog(QDialog):
         def on_secondary_change(v):
             self._current_theme['secondary_size'] = v
             secondary_label.setText(f"{v}px")
+            self.update_preview_window()
         secondary_slider.valueChanged.connect(on_secondary_change)
+        self._font_controls['secondary_size'] = (secondary_slider, secondary_label)
         layout.addWidget(secondary_slider)
         layout.addWidget(secondary_label)
 
@@ -1465,7 +1602,9 @@ class ColorPickerDialog(QDialog):
         def on_radius_change(v):
             self._current_theme['card_radius'] = v
             radius_label.setText(f"{v}px")
+            self.update_preview_window()
         radius_slider.valueChanged.connect(on_radius_change)
+        self._spacing_controls['card_radius'] = (radius_slider, radius_label)
         layout.addWidget(radius_slider)
         layout.addWidget(radius_label)
 
@@ -1480,7 +1619,9 @@ class ColorPickerDialog(QDialog):
         def on_padding_change(v):
             self._current_theme['card_padding'] = v
             padding_label.setText(f"{v}px")
+            self.update_preview_window()
         padding_slider.valueChanged.connect(on_padding_change)
+        self._spacing_controls['card_padding'] = (padding_slider, padding_label)
         layout.addWidget(padding_slider)
         layout.addWidget(padding_label)
 
@@ -1495,7 +1636,9 @@ class ColorPickerDialog(QDialog):
         def on_btn_radius_change(v):
             self._current_theme['button_radius'] = v
             btn_radius_label.setText(f"{v}px")
+            self.update_preview_window()
         btn_radius_slider.valueChanged.connect(on_btn_radius_change)
+        self._spacing_controls['button_radius'] = (btn_radius_slider, btn_radius_label)
         layout.addWidget(btn_radius_slider)
         layout.addWidget(btn_radius_label)
 
@@ -1510,7 +1653,9 @@ class ColorPickerDialog(QDialog):
         def on_border_change(v):
             self._current_theme['border_width'] = v
             border_label.setText(f"{v}px")
+            self.update_preview_window()
         border_slider.valueChanged.connect(on_border_change)
+        self._spacing_controls['border_width'] = (border_slider, border_label)
         layout.addWidget(border_slider)
         layout.addWidget(border_label)
 
@@ -1571,27 +1716,42 @@ class ColorPickerDialog(QDialog):
             if item.widget():
                 item.widget().deleteLater()
         
-        # Cargar temas guardados desde theme.json
+        # Cargar solo temas personalizados
         custom_themes = self.get_custom_themes()
+        if not custom_themes:
+            no_themes_label = QLabel(t('msg_no_custom_themes') if t('msg_no_custom_themes') else "No custom themes saved")
+            no_themes_label.setStyleSheet("color:#9aa0a6; font-style:italic;")
+            self.themes_list_layout.addWidget(no_themes_label)
+            return
+        
         for theme_name in custom_themes:
             theme_row = QWidget()
             row_layout = QHBoxLayout(theme_row)
             row_layout.setContentsMargins(8, 8, 8, 8)
-            row_layout.setSpacing(8)
+            row_layout.setSpacing(12)
             
             label = QLabel(theme_name)
             label.setStyleSheet("color:#e8eaed; padding:8px;")
             row_layout.addWidget(label)
             
-            apply_btn = QPushButton(t('btn_apply_preset'))
+            apply_btn = QPushButton(t('btn_apply'))
             apply_btn.setObjectName('secondary')
-            apply_btn.setMaximumWidth(100)
+            apply_btn.setMinimumWidth(80)
+            apply_btn.setMaximumWidth(120)
             apply_btn.clicked.connect(lambda _, n=theme_name: self.apply_custom_theme(n))
             row_layout.addWidget(apply_btn)
             
+            overwrite_btn = QPushButton(t('btn_overwrite_theme'))
+            overwrite_btn.setObjectName('secondary')
+            overwrite_btn.setMinimumWidth(80)
+            overwrite_btn.setMaximumWidth(120)
+            overwrite_btn.clicked.connect(lambda _, n=theme_name: self.overwrite_custom_theme(n))
+            row_layout.addWidget(overwrite_btn)
+            
             delete_btn = QPushButton(t('btn_delete_theme'))
             delete_btn.setObjectName('secondary')
-            delete_btn.setMaximumWidth(80)
+            delete_btn.setMinimumWidth(80)
+            delete_btn.setMaximumWidth(120)
             delete_btn.clicked.connect(lambda _, n=theme_name: self.delete_custom_theme(n))
             row_layout.addWidget(delete_btn)
             
@@ -1599,13 +1759,13 @@ class ColorPickerDialog(QDialog):
             self.themes_list_layout.addWidget(theme_row)
 
     def save_custom_theme(self):
-        """Guarda el tema actual como tema personalizado"""
+        """Guarda el tema actual como tema personalizado y persiste"""
         name = self.theme_name_input.text().strip()
         if not name:
             QMessageBox.warning(self, t('error_generic'), t('msg_theme_name_required'))
             return
         
-        # Guardar en memoria - será persistido cuando cierre el diálogo
+        # Guardar en memoria y persistir
         custom_themes = self.get_custom_themes()
         if name not in custom_themes:
             custom_themes[name] = self._current_theme.copy()
@@ -1613,126 +1773,121 @@ class ColorPickerDialog(QDialog):
             custom_themes[name].update(self._current_theme)
         
         self.custom_themes_cache = custom_themes
+        # Persistir cambios en el archivo
+        self._persist_custom_themes(custom_themes)
         self.theme_name_input.clear()
         self.refresh_themes_list()
         QMessageBox.information(self, t('msg_theme_saved'), f'{t("msg_theme_saved")}: {name}')
 
     def apply_custom_theme(self, theme_name):
-        """Carga un tema personalizado"""
+        """Carga un tema personalizado y actualiza todos los controles"""
+        custom_themes = self.get_custom_themes()
+        if theme_name not in custom_themes:
+            return
+        
+        # Actualizar tema actual
+        self._current_theme.update(custom_themes[theme_name])
+        self._color_scheme = {k: v for k, v in self._current_theme.items() if isinstance(v, str) and v.startswith('#')}
+        
+        # Actualizar botones de color
+        for key, btn in self._color_buttons.items():
+            color = self._color_scheme.get(key, '#000000')
+            btn.setText(color)
+            btn.setStyleSheet(f"QPushButton#colorBtn {{ background:{color}; color:white; border:2px solid #2d3748; }}")
+        
+        # Actualizar controles de tipografía
+        if 'font_family' in self._font_controls:
+            combo = self._font_controls['font_family']
+            font = self._current_theme.get('font_family', 'Segoe UI')
+            idx = combo.findText(font)
+            if idx >= 0:
+                combo.blockSignals(True)
+                combo.setCurrentIndex(idx)
+                combo.blockSignals(False)
+        
+        for key in ['title_size', 'card_title_size', 'secondary_size']:
+            if key in self._font_controls:
+                slider, label = self._font_controls[key]
+                val = self._current_theme.get(key, 13)
+                slider.blockSignals(True)
+                slider.setValue(val)
+                slider.blockSignals(False)
+                label.setText(f"{val}px")
+        
+        # Actualizar controles de espaciado
+        for key in ['card_radius', 'card_padding', 'button_radius', 'border_width']:
+            if key in self._spacing_controls:
+                slider, label = self._spacing_controls[key]
+                val = self._current_theme.get(key, 12)
+                slider.blockSignals(True)
+                slider.setValue(val)
+                slider.blockSignals(False)
+                label.setText(f"{val}px")
+        
+        self.update_preview_window()
+
+    def overwrite_custom_theme(self, theme_name):
+        """Sobrescribe un tema personalizado con la configuración actual y persiste"""
         custom_themes = self.get_custom_themes()
         if theme_name in custom_themes:
-            self._current_theme.update(custom_themes[theme_name])
-            self._color_scheme = {k: v for k, v in self._current_theme.items() if isinstance(v, str) and v.startswith('#')}
-            self.update_preview()
+            custom_themes[theme_name] = self._current_theme.copy()
+            self.custom_themes_cache = custom_themes
+            # Persistir cambios en el archivo
+            self._persist_custom_themes(custom_themes)
+            QMessageBox.information(self, t('msg_theme_saved'), f'{t("msg_theme_saved")}: {theme_name}')
 
     def delete_custom_theme(self, theme_name):
-        """Elimina un tema personalizado"""
+        """Elimina un tema personalizado y persiste los cambios"""
         reply = QMessageBox.question(self, t('error_generic'), t('msg_confirm_delete_theme').format(name=theme_name))
         if reply == QMessageBox.Yes:
             custom_themes = self.get_custom_themes()
             if theme_name in custom_themes:
                 del custom_themes[theme_name]
                 self.custom_themes_cache = custom_themes
+                # Persistir cambios en el archivo
+                self._persist_custom_themes(custom_themes)
                 self.refresh_themes_list()
                 QMessageBox.information(self, t('msg_theme_deleted'), f'{t("msg_theme_deleted")}: {theme_name}')
 
+    def _persist_custom_themes(self, custom_themes):
+        """Persiste los temas personalizados en theme.json"""
+        try:
+            if self.parent() and hasattr(self.parent(), 'theme_file'):
+                theme_file = self.parent().theme_file
+                if theme_file.exists():
+                    with open(theme_file, 'r', encoding='utf-8') as f:
+                        data = json.load(f)
+                    data['custom_themes'] = custom_themes
+                    with open(theme_file, 'w', encoding='utf-8') as f:
+                        json.dump(data, f, indent=2, ensure_ascii=False)
+        except Exception as e:
+            print(f'Error persisting custom themes: {e}')
+
     def get_custom_themes(self):
-        """Obtiene los temas personalizados guardados (en caché para esta sesión)"""
+        """Obtiene los temas personalizados guardados (desde caché o desde archivo)"""
         if hasattr(self, 'custom_themes_cache'):
             return self.custom_themes_cache
-        # En futuro, cargar desde archivo
+        
+        # Intentar cargar desde theme.json
+        try:
+            # Buscar el archivo theme.json del parent (GameLibrary)
+            if self.parent() and hasattr(self.parent(), 'theme_file'):
+                theme_file = self.parent().theme_file
+                if theme_file.exists():
+                    with open(theme_file, 'r', encoding='utf-8') as f:
+                        data = json.load(f)
+                        custom_themes = data.get('custom_themes', {})
+                        self.custom_themes_cache = custom_themes
+                        return custom_themes
+        except Exception:
+            pass
+        
         return {}
 
-    def create_preview_tab(self):
-        """Tab de preview en vivo de los cambios"""
-        widget = QWidget()
-        layout = QVBoxLayout(widget)
-        layout.setContentsMargins(24, 24, 24, 24)
-        
-        # Crear un ejemplo de card para preview
-        self.preview_card = QFrame()
-        self.preview_card.setFrameStyle(QFrame.StyledPanel | QFrame.Raised)
-        self.preview_card.setFixedSize(250, 220)
-        card_layout = QVBoxLayout(self.preview_card)
-        card_layout.setContentsMargins(0, 0, 0, 0)
-        card_layout.setSpacing(0)
-        
-        # Imagen (ejemplo)
-        self.preview_image = QLabel()
-        self.preview_image.setFixedHeight(140)
-        self.preview_image.setAlignment(Qt.AlignCenter)
-        self.preview_image.setText("🎮")
-        self.preview_image.setStyleSheet("font-size:48px;")
-        card_layout.addWidget(self.preview_image)
-        
-        # Contenido (nombre, etc)
-        self.preview_content = QWidget()
-        content_layout = QVBoxLayout(self.preview_content)
-        content_layout.setContentsMargins(10, 10, 10, 10)
-        content_layout.setSpacing(4)
-        
-        self.preview_title = QLabel("Game Name")
-        self.preview_title.setStyleSheet("color:#e8eaed; font-weight:bold;")
-        content_layout.addWidget(self.preview_title)
-        
-        self.preview_path = QLabel("C:\\Games\\game.exe")
-        self.preview_path.setStyleSheet("color:#9aa0a6; font-size:10px;")
-        self.preview_path.setWordWrap(True)
-        content_layout.addWidget(self.preview_path)
-        
-        content_layout.addStretch()
-        card_layout.addWidget(self.preview_content)
-        
-        layout.addWidget(QLabel("Preview - Live Changes"))
-        layout.addWidget(self.preview_card)
-        layout.addStretch()
-        
-        self.update_preview()
-        return widget
-
-    def update_preview(self):
-        """Actualiza el preview con los cambios actuales"""
-        if not hasattr(self, 'preview_card'):
-            return
-        
-        c = self._current_theme
-        card_bg = c.get('card_bg', '#1a1f2e')
-        card_border = c.get('card_border', 'transparent')
-        card_hover_border = c.get('card_hover_border', '#667eea')
-        card_radius = c.get('card_radius', 12)
-        border_width = c.get('border_width', 2)
-        font_family = c.get('font_family', 'Segoe UI')
-        card_title_size = c.get('card_title_size', 15)
-        secondary_size = c.get('secondary_size', 12)
-        text_primary = c.get('text_primary', '#e8eaed')
-        text_secondary = c.get('text_secondary', '#9aa0a6')
-        accent_start = c.get('accent_start', '#667eea')
-        accent_end = c.get('accent_end', '#764ba2')
-        
-        # Aplicar estilos al preview
-        self.preview_card.setStyleSheet(f"""
-            QFrame {{
-                background-color: {card_bg};
-                border-radius: {card_radius}px;
-                border: {border_width}px solid {card_border};
-            }}
-        """)
-        
-        self.preview_image.setStyleSheet(f"""
-            background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
-                stop:0 {accent_start}, stop:1 {accent_end});
-            font-size: 48px;
-        """)
-        
-        self.preview_content.setStyleSheet(f"background-color: {card_bg};")
-        
-        title_font = QFont(font_family, card_title_size, QFont.Bold)
-        self.preview_title.setFont(title_font)
-        self.preview_title.setStyleSheet(f"color:{text_primary};")
-        
-        path_font = QFont(font_family, secondary_size - 2)
-        self.preview_path.setFont(path_font)
-        self.preview_path.setStyleSheet(f"color:{text_secondary};")
+    def update_preview_window(self):
+        """Actualiza la ventana de preview con los cambios actuales"""
+        if hasattr(self, 'preview_window') and self.preview_window:
+            self.preview_window.update_preview(self._current_theme)
 
     def create_color_button(self, key):
         from PyQt5.QtWidgets import QColorDialog
@@ -1748,19 +1903,54 @@ class ColorPickerDialog(QDialog):
                 self._current_theme[key] = hex_color
                 btn.setText(hex_color)
                 btn.setStyleSheet(f"QPushButton#colorBtn {{ background:{hex_color}; color:white; border:2px solid #667eea; }}")
-                self.update_preview()  # Actualizar preview en vivo
+                self.update_preview_window()  # Actualizar preview en vivo
         btn.clicked.connect(pick)
         self._color_buttons[key] = btn
         return btn
 
     def reset_colors(self):
-        self._color_scheme = self.default_colors()
+        """Restaura todos los valores por defecto: colores, tipografía y espaciado"""
+        # Restaurar tema completo
         self._current_theme.update(self.default_theme())
+        
+        # Restaurar colores en botones de color
+        self._color_scheme = self.default_colors()
         for key, btn in self._color_buttons.items():
             color = self._color_scheme[key]
             btn.setText(color)
             btn.setStyleSheet(f"QPushButton#colorBtn {{ background:{color}; color:white; border:2px solid #2d3748; }}")
-        self.update_preview()  # Actualizar preview después de reset
+        
+        # Restaurar tipografía
+        if 'font_family' in self._font_controls:
+            combo = self._font_controls['font_family']
+            default_font = self.default_theme()['font_family']
+            idx = combo.findText(default_font)
+            if idx >= 0:
+                combo.blockSignals(True)
+                combo.setCurrentIndex(idx)
+                combo.blockSignals(False)
+        
+        # Restaurar tamaños de tipografía
+        for key in ['title_size', 'card_title_size', 'secondary_size']:
+            if key in self._font_controls:
+                slider, label = self._font_controls[key]
+                default_val = self.default_theme()[key]
+                slider.blockSignals(True)
+                slider.setValue(default_val)
+                slider.blockSignals(False)
+                label.setText(f"{default_val}px")
+        
+        # Restaurar espaciado
+        for key in ['card_radius', 'card_padding', 'button_radius', 'border_width']:
+            if key in self._spacing_controls:
+                slider, label = self._spacing_controls[key]
+                default_val = self.default_theme()[key]
+                slider.blockSignals(True)
+                slider.setValue(default_val)
+                slider.blockSignals(False)
+                label.setText(f"{default_val}px")
+        
+        self.update_preview_window()  # Actualizar preview después de reset
 
     def pick_background(self):
         file_filter = 'All Supported (*.png *.jpg *.jpeg *.bmp *.gif *.mp4 *.webm *.mkv *.mov);;Static Images (*.png *.jpg *.jpeg *.bmp);;Animated GIF (*.gif);;Video (*.mp4 *.webm *.mkv *.mov)'
@@ -1827,6 +2017,27 @@ class ColorPickerDialog(QDialog):
             thumb.clicked.connect(make_handler())
             r, c = divmod(idx, 4)
             self.history_grid.addWidget(thumb, r, c)
+
+    def close_and_accept(self):
+        """Cerrar preview y aceptar cambios"""
+        if hasattr(self, 'preview_window') and self.preview_window:
+            self.preview_window.close()
+            self.preview_window.deleteLater()
+        self.accept()
+    
+    def close_and_reject(self):
+        """Cerrar preview y rechazar cambios"""
+        if hasattr(self, 'preview_window') and self.preview_window:
+            self.preview_window.close()
+            self.preview_window.deleteLater()
+        self.reject()
+
+    def closeEvent(self, event):
+        """Cerrar ventana de preview cuando se cierra el diálogo"""
+        if hasattr(self, 'preview_window') and self.preview_window:
+            self.preview_window.close()
+            self.preview_window.deleteLater()
+        super().closeEvent(event)
 
 
 class GameLibrary(QMainWindow):
@@ -3458,21 +3669,27 @@ class GameLibrary(QMainWindow):
     def open_settings(self):
         bg = ''
         current_theme = None
+        custom_themes = {}
         if self.theme_file.exists():
             try:
                 with open(self.theme_file, 'r', encoding='utf-8') as f:
                     data = json.load(f)
                     bg = data.get('background_image', '') or ''
                     current_theme = data.get('theme')  # Cargar tema completo si existe
+                    custom_themes = data.get('custom_themes', {})  # Cargar temas personalizados
             except Exception:
                 pass
         dlg = ColorPickerDialog(self, current_bg=bg, current_opacity=self.bg_opacity, color_scheme=self.color_scheme, current_bg_type=self.bg_type, current_theme=current_theme)
+        # Inicializar caché de temas personalizados
+        dlg.custom_themes_cache = custom_themes
         # Conectar señal de cambio de idioma para recargar UI
         dlg.language_changed.connect(self.reload_ui_text)
         try:
             dlg.apply_history(self.bg_history)
         except Exception:
             pass
+        # Refrescar lista de temas personalizados
+        dlg.refresh_themes_list()
         if dlg.exec_() == QDialog.Accepted:
             data = dlg.get_data()
             self.save_theme(data['background_image'], data['background_opacity'], data.get('color_scheme'), data.get('background_type', 'static'), data.get('theme'), data.get('custom_themes'))

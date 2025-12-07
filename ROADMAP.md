@@ -41,6 +41,16 @@
 - [x] **Play Time Display** - Show in game card or details view
 
 ### 🎨 Enhanced Theme System
+- [x] **Theme Preview** - Live preview in floating window before applying
+- [x] **Custom Theme Name** - Users can name and save their custom themes
+- [x] **Custom Theme Save/Load/Delete** - Full CRUD operations for custom themes
+- [x] **Theme Persistence** - Custom themes saved in theme.json
+- [x] **Animated Game Card Covers** - Support GIF covers on game cards (animations pause when off-screen to save resources)
+- [x] **Advanced Customization**:
+  - Typography (font family, sizes)
+  - Spacing & Layout (card radius, padding, borders)
+  - Color Scheme (16+ color values)
+- [x] **Theme Presets** - 4 Base presets (Base, Light, Dark, Pink)
 - [ ] **New Theme Presets** (6+ additional themes):
   - **Cyberpunk** - Neon colors with dark background
   - **Sunset** - Orange/red gradient theme
@@ -48,9 +58,6 @@
   - **Ocean** - Blue water theme
   - **Retro** - Vintage/80s aesthetic
   - **Minimal** - Clean, minimalist design
-- [ ] **Theme Preview** - Live preview before applying
-- [ ] **Custom Theme Name** - Users can name their custom themes
-- [ ] **Animated Game Card Covers** - Support GIF covers on game cards (animations pause when off-screen to save resources)
 
 ### 🖼️ Animated Background Support
 - [x] **GIF Format Support** - Play animated GIFs as background
