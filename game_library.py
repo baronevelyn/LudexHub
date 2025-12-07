@@ -10,6 +10,7 @@ from datetime import datetime, timedelta
 from steam_scanner import SteamScanner
 from epic_scanner import EpicScanner
 from i18n import I18n, t
+from font_installer import ensure_fonts_installed
 from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
                              QHBoxLayout, QGridLayout, QPushButton, QLabel, 
                              QLineEdit, QDialog, QScrollArea, QFrame, QComboBox,
@@ -4772,6 +4773,9 @@ class GameLibrary(QMainWindow):
 
 
 def main():
+    # Instalar fuentes requeridas antes de inicializar la aplicación
+    ensure_fonts_installed()
+    
     app = QApplication(sys.argv)
     app.setStyle('Fusion')
     
