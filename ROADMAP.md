@@ -50,6 +50,7 @@
   - **Minimal** - Clean, minimalist design
 - [ ] **Theme Preview** - Live preview before applying
 - [ ] **Custom Theme Name** - Users can name their custom themes
+- [ ] **Animated Game Card Covers** - Support GIF covers on game cards (animations pause when off-screen to save resources)
 
 ### 🖼️ Animated Background Support
 - [x] **GIF Format Support** - Play animated GIFs as background

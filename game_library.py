@@ -56,6 +56,8 @@ class GameCard(QFrame):
         self.parent_window = parent
         self.list_mode = list_mode
         self.animation_delay = animation_delay
+        self.cover_movie = None  # QMovie para GIF animado en cover
+        self._is_visible = False  # Track visibility para pausar GIF
         self.setup_ui()
 
     def _format_playtime(self, seconds):
@@ -308,8 +310,12 @@ class GameCard(QFrame):
         QTimer.singleShot(self.animation_delay, self.fade_animation.start)
 
     def load_image(self, url_or_path):
-        """Cargar imagen desde URL o ruta local"""
+        """Cargar imagen desde URL o ruta local (soporta GIF animados)"""
         if os.path.exists(url_or_path):
+            # Detectar si es GIF
+            if url_or_path.lower().endswith('.gif'):
+                self._load_gif_cover(url_or_path)
+                return
             pixmap = QPixmap(url_or_path)
             if not pixmap.isNull():
                 self.set_image(self.game['id'], pixmap)
@@ -329,6 +335,35 @@ class GameCard(QFrame):
             scaled_pixmap = pixmap.scaled(w, h, Qt.KeepAspectRatioByExpanding, Qt.SmoothTransformation)
             self.image_label.setPixmap(scaled_pixmap)
             self.image_label.setText("")
+
+    def _load_gif_cover(self, gif_path):
+        """Cargar GIF animado en el cover de la card"""
+        try:
+            if self.cover_movie:
+                self.cover_movie.stop()
+            self.cover_movie = QMovie(gif_path)
+            self.cover_movie.setCacheMode(QMovie.CacheAll)
+            # Conectar señal para actualizar label con cada frame
+            self.cover_movie.frameChanged.connect(self._update_gif_frame)
+            self.image_label.setMovie(self.cover_movie)
+            self.image_label.setText("")
+            # Solo iniciar si la card es visible
+            if self._is_visible:
+                self.cover_movie.start()
+        except Exception as e:
+            print(f'Error cargando GIF cover: {e}')
+
+    def _update_gif_frame(self):
+        """Actualiza el frame del GIF en el label (escalado)"""
+        if not self.cover_movie:
+            return
+        current = self.cover_movie.currentPixmap()
+        if not current.isNull():
+            target_size = self.image_label.size()
+            w = max(1, target_size.width())
+            h = max(1, target_size.height())
+            scaled = current.scaled(w, h, Qt.KeepAspectRatioByExpanding, Qt.SmoothTransformation)
+            self.image_label.setPixmap(scaled)
             
     def load_icon(self, url_or_path, label):
         """Cargar icono desde URL o ruta local"""
@@ -530,6 +565,20 @@ class GameCard(QFrame):
             self._anim = anim
             anim.start()
         super().leaveEvent(event)
+
+    def showEvent(self, event):
+        """Cuando la card se hace visible, reanudar GIF si existe"""
+        super().showEvent(event)
+        self._is_visible = True
+        if self.cover_movie and not self.cover_movie.state() == QMovie.Running:
+            self.cover_movie.start()
+
+    def hideEvent(self, event):
+        """Cuando la card se oculta, pausar GIF para ahorrar recursos"""
+        super().hideEvent(event)
+        self._is_visible = False
+        if self.cover_movie and self.cover_movie.state() == QMovie.Running:
+            self.cover_movie.setPaused(True)
 
 
 class AddGameDialog(QDialog):
