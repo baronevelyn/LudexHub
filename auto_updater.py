@@ -106,9 +106,15 @@ class AutoUpdater:
             windows_asset = None
             for asset in release_data.get('assets', []):
                 asset_name = asset['name'].lower()
-                if asset_name.endswith('.exe') and 'windows' in asset_name:
-                    windows_asset = asset
-                    break
+                # Look for .exe files (prefer ones with 'windows' or 'ludexhub')
+                if asset_name.endswith('.exe'):
+                    # Prefer files with 'windows' or 'ludexhub' in name
+                    if 'windows' in asset_name or 'ludexhub' in asset_name:
+                        windows_asset = asset
+                        break
+                    elif not windows_asset:
+                        # Fallback: accept any .exe
+                        windows_asset = asset
             
             if not windows_asset:
                 print(f"[WARN] No Windows executable found in release {latest_version}")
