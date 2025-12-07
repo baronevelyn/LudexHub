@@ -50,14 +50,17 @@
   - Typography (font family, sizes)
   - Spacing & Layout (card radius, padding, borders)
   - Color Scheme (16+ color values)
-- [x] **Theme Presets** - 4 Base presets (Base, Light, Dark, Pink)
-- [ ] **New Theme Presets** (6+ additional themes):
-  - **Cyberpunk** - Neon colors with dark background
-  - **Sunset** - Orange/red gradient theme
-  - **Forest** - Green nature-inspired theme
-  - **Ocean** - Blue water theme
-  - **Retro** - Vintage/80s aesthetic
-  - **Minimal** - Clean, minimalist design
+- [x] **Theme Presets** - 10 Complete presets with typography and spacing:
+  - Base (Modern dark theme)
+  - Light (Professional light theme)
+  - Dark (Deep dark theme with purple accents)
+  - Pink (Vibrant pink theme)
+  - **Cyberpunk** - Neon colors, JetBrains Mono font, sharp borders
+  - **Sunset** - Warm orange/red, Inter font, smooth borders
+  - **Forest** - Green nature theme, Roboto font, natural styling
+  - **Ocean** - Cool blue theme, Poppins font, professional look
+  - **Retro** - 80s aesthetic, Space Mono font, bold borders
+  - **Minimal** - Clean minimalist, Open Sans font, subtle styling
 
 ### 🖼️ Animated Background Support
 - [x] **GIF Format Support** - Play animated GIFs as background

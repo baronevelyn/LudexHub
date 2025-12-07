@@ -1014,6 +1014,7 @@ class ColorPickerDialog(QDialog):
         """Retorna un diccionario con todos los presets de temas disponibles"""
         return {
             'Base': {
+                # Colores
                 'bg_gradient_start': '#0f1419',
                 'bg_gradient_end': '#1a1f2e',
                 'top_bar_bg': '#121822',
@@ -1026,9 +1027,20 @@ class ColorPickerDialog(QDialog):
                 'text_primary': '#e8eaed',
                 'text_secondary': '#9aa0a6',
                 'input_bg': '#1a1f2e',
-                'input_border': '#2d3748'
+                'input_border': '#2d3748',
+                # Tipografía
+                'font_family': 'Segoe UI',
+                'title_size': 18,
+                'card_title_size': 16,
+                'secondary_size': 13,
+                # Espaciado
+                'card_radius': 12,
+                'card_padding': 10,
+                'button_radius': 8,
+                'border_width': 2,
             },
             'Light': {
+                # Colores
                 'bg_gradient_start': '#f5f5f5',
                 'bg_gradient_end': '#ffffff',
                 'top_bar_bg': '#e8e8e8',
@@ -1041,9 +1053,20 @@ class ColorPickerDialog(QDialog):
                 'text_primary': '#1f2937',
                 'text_secondary': '#6b7280',
                 'input_bg': '#f9fafb',
-                'input_border': '#d1d5db'
+                'input_border': '#d1d5db',
+                # Tipografía
+                'font_family': 'Segoe UI',
+                'title_size': 18,
+                'card_title_size': 16,
+                'secondary_size': 13,
+                # Espaciado
+                'card_radius': 12,
+                'card_padding': 10,
+                'button_radius': 8,
+                'border_width': 1,
             },
             'Dark': {
+                # Colores
                 'bg_gradient_start': '#0a0e14',
                 'bg_gradient_end': '#111827',
                 'top_bar_bg': '#0f1419',
@@ -1056,9 +1079,20 @@ class ColorPickerDialog(QDialog):
                 'text_primary': '#f9fafb',
                 'text_secondary': '#9ca3af',
                 'input_bg': '#1f2937',
-                'input_border': '#374151'
+                'input_border': '#374151',
+                # Tipografía
+                'font_family': 'Segoe UI',
+                'title_size': 18,
+                'card_title_size': 16,
+                'secondary_size': 13,
+                # Espaciado
+                'card_radius': 12,
+                'card_padding': 10,
+                'button_radius': 8,
+                'border_width': 1,
             },
             'Pink': {
+                # Colores
                 'bg_gradient_start': '#2d1b29',
                 'bg_gradient_end': '#1a1325',
                 'top_bar_bg': '#221628',
@@ -1071,8 +1105,174 @@ class ColorPickerDialog(QDialog):
                 'text_primary': '#ffd1dc',
                 'text_secondary': '#d4a5b0',
                 'input_bg': '#2d1b29',
-                'input_border': '#4a2f3f'
-            }
+                'input_border': '#4a2f3f',
+                # Tipografía
+                'font_family': 'Segoe UI',
+                'title_size': 18,
+                'card_title_size': 16,
+                'secondary_size': 13,
+                # Espaciado
+                'card_radius': 12,
+                'card_padding': 10,
+                'button_radius': 8,
+                'border_width': 1,
+            },
+            'Cyberpunk': {
+                # Colores
+                'bg_gradient_start': '#0a0a0f',
+                'bg_gradient_end': '#1a1a2e',
+                'top_bar_bg': '#0f0f1a',
+                'card_bg': '#16213e',
+                'card_border': '#00ff88',
+                'card_hover_border': '#ff006e',
+                'card_hover_bg': '#1f3a4a',
+                'accent_start': '#00ff88',
+                'accent_end': '#ff006e',
+                'text_primary': '#00ffff',
+                'text_secondary': '#00cc88',
+                'input_bg': '#0f1419',
+                'input_border': '#00ff88',
+                # Tipografía
+                'font_family': 'JetBrains Mono',
+                'title_size': 20,
+                'card_title_size': 17,
+                'secondary_size': 12,
+                # Espaciado
+                'card_radius': 2,
+                'card_padding': 12,
+                'button_radius': 2,
+                'border_width': 2,
+            },
+            'Sunset': {
+                # Colores
+                'bg_gradient_start': '#2d1b00',
+                'bg_gradient_end': '#1a0a05',
+                'top_bar_bg': '#3d2b15',
+                'card_bg': '#3d2b20',
+                'card_border': 'transparent',
+                'card_hover_border': '#ffb347',
+                'card_hover_bg': '#4d3b30',
+                'accent_start': '#ff8c00',
+                'accent_end': '#ff6347',
+                'text_primary': '#ffe4b5',
+                'text_secondary': '#daa520',
+                'input_bg': '#2d1b00',
+                'input_border': '#8b6914',
+                # Tipografía
+                'font_family': 'Inter',
+                'title_size': 18,
+                'card_title_size': 15,
+                'secondary_size': 13,
+                # Espaciado
+                'card_radius': 16,
+                'card_padding': 14,
+                'button_radius': 10,
+                'border_width': 1,
+            },
+            'Forest': {
+                # Colores
+                'bg_gradient_start': '#1a2e1a',
+                'bg_gradient_end': '#0d1b0d',
+                'top_bar_bg': '#1a3a1a',
+                'card_bg': '#1f3a1f',
+                'card_border': 'transparent',
+                'card_hover_border': '#4caf50',
+                'card_hover_bg': '#2a4a2a',
+                'accent_start': '#2d5a2d',
+                'accent_end': '#3d7a3d',
+                'text_primary': '#e8f5e9',
+                'text_secondary': '#a5d6a7',
+                'input_bg': '#1a2e1a',
+                'input_border': '#388e3c',
+                # Tipografía
+                'font_family': 'Roboto',
+                'title_size': 19,
+                'card_title_size': 16,
+                'secondary_size': 13,
+                # Espaciado
+                'card_radius': 14,
+                'card_padding': 12,
+                'button_radius': 8,
+                'border_width': 1,
+            },
+            'Ocean': {
+                # Colores
+                'bg_gradient_start': '#0d1b2a',
+                'bg_gradient_end': '#071a31',
+                'top_bar_bg': '#0f2a42',
+                'card_bg': '#1a3a52',
+                'card_border': 'transparent',
+                'card_hover_border': '#00bfff',
+                'card_hover_bg': '#1f4a62',
+                'accent_start': '#0099ff',
+                'accent_end': '#0066cc',
+                'text_primary': '#b3e5fc',
+                'text_secondary': '#4fc3f7',
+                'input_bg': '#0d1b2a',
+                'input_border': '#0288d1',
+                # Tipografía
+                'font_family': 'Poppins',
+                'title_size': 18,
+                'card_title_size': 15,
+                'secondary_size': 12,
+                # Espaciado
+                'card_radius': 12,
+                'card_padding': 13,
+                'button_radius': 8,
+                'border_width': 1,
+            },
+            'Retro': {
+                # Colores
+                'bg_gradient_start': '#2a1a3a',
+                'bg_gradient_end': '#1a0a2a',
+                'top_bar_bg': '#3a1a4a',
+                'card_bg': '#3a1a4a',
+                'card_border': '#ffff00',
+                'card_hover_border': '#ff00ff',
+                'card_hover_bg': '#4a2a5a',
+                'accent_start': '#ff00ff',
+                'accent_end': '#00ffff',
+                'text_primary': '#ffff00',
+                'text_secondary': '#ff00ff',
+                'input_bg': '#1a0a2a',
+                'input_border': '#00ffff',
+                # Tipografía
+                'font_family': 'Space Mono',
+                'title_size': 20,
+                'card_title_size': 16,
+                'secondary_size': 12,
+                # Espaciado
+                'card_radius': 4,
+                'card_padding': 10,
+                'button_radius': 4,
+                'border_width': 3,
+            },
+            'Minimal': {
+                # Colores
+                'bg_gradient_start': '#f5f5f5',
+                'bg_gradient_end': '#e8e8e8',
+                'top_bar_bg': '#f0f0f0',
+                'card_bg': '#ffffff',
+                'card_border': 'transparent',
+                'card_hover_border': '#cccccc',
+                'card_hover_bg': '#f9f9f9',
+                'accent_start': '#2c3e50',
+                'accent_end': '#34495e',
+                'text_primary': '#1a1a1a',
+                'text_secondary': '#707070',
+                'input_bg': '#fafafa',
+                'input_border': '#d1d1d1',
+                # Tipografía
+                'font_family': 'Open Sans',
+                'title_size': 17,
+                'card_title_size': 15,
+                'secondary_size': 13,
+                # Espaciado
+                'card_radius': 8,
+                'card_padding': 12,
+                'button_radius': 6,
+                'border_width': 1,
+            },
         }
 
     def apply_preset(self, preset_name):
