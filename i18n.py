@@ -4,18 +4,18 @@
 TRANSLATIONS = {
     'es': {
         # Ventana principal
-        'app_title': 'Mi Biblioteca de Juegos',
+        'app_title': 'Mi Biblioteca',
         'app_title_alt': 'Game Library v1.0',
         
         # Botones principales
-        'btn_add_game': '+ Agregar Juego',
-        'btn_import_games': 'Importar Juegos',
-        'btn_settings': 'Configuración',
-        'btn_search_placeholder': '🔍 Buscar juegos...',
+        'btn_add_game': '+ Agregar',
+        'btn_import_games': '📥 Importar',
+        'btn_settings': '⚙️',
+        'btn_search_placeholder': 'Buscar',
         
         # Modos de vista
-        'view_grid': 'Vista Grid',
-        'view_list': 'Vista Lista',
+        'view_grid': 'Grid',
+        'view_list': 'Lista',
         
         # Filtros y favoritos
         'btn_favorites_filter': '⭐ Solo Favoritos',
@@ -34,6 +34,7 @@ TRANSLATIONS = {
         'sort_date_newest': 'Añadido (más nuevo)',
         'sort_date_oldest': 'Añadido (más antiguo)',
         'menu_folders': 'Carpetas',
+        'label_folders': 'Carpetas',
         'btn_new_folder': 'Nueva carpeta',
         'btn_edit_folder': 'Editar carpeta',
         'btn_delete_folder': 'Eliminar carpeta',
@@ -74,6 +75,8 @@ TRANSLATIONS = {
         'tab_background': 'Fondo',
         'tab_general_colors': 'Colores Generales',
         'tab_card_colors': 'Colores de Tarjetas',
+        'tab_typography': 'Tipografía',
+        'tab_spacing_layout': 'Espaciado y Diseño',
         'label_bg_image': 'Imagen de Fondo (opcional)',
         'placeholder_bg_image': 'Ruta local a fondo (PNG/JPG/GIF/MP4/WebM)',
         'label_opacity': 'Opacidad del Fondo (0 = invisible, 40 = más visible)',
@@ -151,18 +154,18 @@ TRANSLATIONS = {
     },
     'en': {
         # Ventana principal
-        'app_title': 'My Game Library',
+        'app_title': 'My Library',
         'app_title_alt': 'Game Library v1.0',
         
         # Botones principales
-        'btn_add_game': '+ Add Game',
-        'btn_import_games': 'Import Games',
-        'btn_settings': 'Settings',
-        'btn_search_placeholder': '🔍 Search games...',
+        'btn_add_game': '+ Add',
+        'btn_import_games': '📥 Import',
+        'btn_settings': '⚙️',
+        'btn_search_placeholder': 'Search',
         
         # Modos de vista
-        'view_grid': 'Grid View',
-        'view_list': 'List View',
+        'view_grid': 'Grid',
+        'view_list': 'List',
         
         # Filters and favorites
         'btn_favorites_filter': '⭐ Favorites Only',
@@ -181,6 +184,7 @@ TRANSLATIONS = {
         'sort_date_newest': 'Added (newest)',
         'sort_date_oldest': 'Added (oldest)',
         'menu_folders': 'Folders',
+        'label_folders': 'Folders',
         'btn_new_folder': 'New Folder',
         'btn_edit_folder': 'Edit Folder',
         'btn_delete_folder': 'Delete Folder',
@@ -221,6 +225,8 @@ TRANSLATIONS = {
         'tab_background': 'Background',
         'tab_general_colors': 'General Colors',
         'tab_card_colors': 'Card Colors',
+        'tab_typography': 'Typography',
+        'tab_spacing_layout': 'Spacing & Layout',
         'label_bg_image': 'Background Image (optional)',
         'placeholder_bg_image': 'Local background path (PNG/JPG/GIF/MP4/WebM)',
         'label_opacity': 'Background Opacity (0 = invisible, 40 = more visible)',

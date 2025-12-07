@@ -83,6 +83,7 @@ class GameCard(QFrame):
         font_family = c.get('font_family', 'Segoe UI')
         card_title_size = c.get('card_title_size', 15)
         secondary_size = c.get('secondary_size', 12)
+        button_radius = c.get('button_radius', 8)
         
         self.setStyleSheet(f"""
             GameCard {{
@@ -1024,8 +1025,8 @@ class ColorPickerDialog(QDialog):
         tabs.addTab(self.create_background_tab(), t('tab_background'))
         tabs.addTab(self.create_general_colors_tab(), t('tab_general_colors'))
         tabs.addTab(self.create_card_colors_tab(), t('tab_card_colors'))
-        tabs.addTab(self.create_typography_tab(), 'Typography')
-        tabs.addTab(self.create_spacing_tab(), 'Spacing & Layout')
+        tabs.addTab(self.create_typography_tab(), t('tab_typography'))
+        tabs.addTab(self.create_spacing_tab(), t('tab_spacing_layout'))
         root.addWidget(tabs)
 
         # Buttons
@@ -3253,7 +3254,7 @@ class GameLibrary(QMainWindow):
         
         # Actualizar botones
         self.add_btn.setText(t('btn_add_game'))
-        self.import_btn.setText("📥 " + t('btn_import_games'))
+        self.import_btn.setText(t('btn_import_games'))
         self.customize_btn.setText(t('btn_settings'))
         
         # Actualizar selector de vista
@@ -3264,6 +3265,14 @@ class GameLibrary(QMainWindow):
             self.view_combo.addItems([t('view_grid'), t('view_list')])
             self.view_combo.setCurrentIndex(current_index)
             self.view_combo.blockSignals(False)
+        
+        # Actualizar sidebar con nuevas traducciones
+        if hasattr(self, '_refresh_sidebar_buttons'):
+            self._refresh_sidebar_buttons()
+        
+        # Actualizar menú de filtros
+        if hasattr(self, '_build_filter_menu'):
+            self._build_filter_menu()
         
     def load_games(self):
         """Cargar juegos desde el archivo JSON"""
