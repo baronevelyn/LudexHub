@@ -164,6 +164,17 @@ TRANSLATIONS = {
         'btn_ok': 'OK',
         'loading': 'Cargando...',
         'importing': 'Importando...',
+        
+        # Temas personalizados
+        'label_custom_themes': 'Temas Personalizados',
+        'btn_save_custom_theme': 'Guardar Tema',
+        'btn_apply_preset': 'Aplicar Preset',
+        'btn_delete_theme': 'Eliminar',
+        'placeholder_theme_name': 'Nombre del tema',
+        'msg_theme_saved': 'Tema guardado exitosamente',
+        'msg_theme_deleted': 'Tema eliminado',
+        'msg_confirm_delete_theme': '¿Estás seguro de que deseas eliminar el tema "{name}"?',
+        'msg_theme_name_required': 'Por favor ingresa un nombre para el tema',
     },
     'en': {
         # Ventana principal
@@ -327,6 +338,17 @@ TRANSLATIONS = {
         'btn_ok': 'OK',
         'loading': 'Loading...',
         'importing': 'Importing...',
+        
+        # Custom themes
+        'label_custom_themes': 'Custom Themes',
+        'btn_save_custom_theme': 'Save Theme',
+        'btn_apply_preset': 'Apply Preset',
+        'btn_delete_theme': 'Delete',
+        'placeholder_theme_name': 'Theme name',
+        'msg_theme_saved': 'Theme saved successfully',
+        'msg_theme_deleted': 'Theme deleted',
+        'msg_confirm_delete_theme': 'Are you sure you want to delete the theme "{name}"?',
+        'msg_theme_name_required': 'Please enter a theme name',
     }
 }
 

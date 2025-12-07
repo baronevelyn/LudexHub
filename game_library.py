@@ -1027,6 +1027,13 @@ class ColorPickerDialog(QDialog):
         tabs.addTab(self.create_card_colors_tab(), t('tab_card_colors'))
         tabs.addTab(self.create_typography_tab(), t('tab_typography'))
         tabs.addTab(self.create_spacing_tab(), t('tab_spacing_layout'))
+        tabs.addTab(self.create_themes_tab(), t('label_custom_themes'))
+        tabs.addTab(self.create_preview_tab(), 'Preview')
+        
+        # Conectar cambios en tabs para actualizar preview
+        self.preview_tab_obj = self.tabs_ref = tabs
+        tabs.currentChanged.connect(self.update_preview)
+        
         root.addWidget(tabs)
 
         # Buttons
@@ -1510,6 +1517,223 @@ class ColorPickerDialog(QDialog):
         layout.addStretch()
         return widget
 
+    def create_themes_tab(self):
+        """Tab para guardar y gestionar temas personalizados"""
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+        layout.setSpacing(12)
+        layout.setContentsMargins(24, 24, 24, 24)
+        
+        # Botón para guardar tema actual
+        layout.addWidget(QLabel(t('btn_save_custom_theme')))
+        save_theme_layout = QHBoxLayout()
+        self.theme_name_input = QLineEdit()
+        self.theme_name_input.setPlaceholderText(t('placeholder_theme_name'))
+        self.theme_name_input.setStyleSheet("""
+            QLineEdit { background:#252d3d; border:2px solid #2d3748; border-radius:8px; padding:8px; color:#e8eaed; }
+            QLineEdit:focus { border-color:#667eea; }
+        """)
+        save_theme_layout.addWidget(self.theme_name_input)
+        
+        save_btn = QPushButton(t('btn_save_custom_theme'))
+        save_btn.setObjectName('primary')
+        save_btn.clicked.connect(self.save_custom_theme)
+        save_theme_layout.addWidget(save_btn)
+        layout.addLayout(save_theme_layout)
+        
+        # Lista de temas personalizados
+        layout.addWidget(QLabel(t('label_custom_themes')))
+        self.themes_list = QWidget()
+        self.themes_list_layout = QVBoxLayout(self.themes_list)
+        self.themes_list_layout.setSpacing(8)
+        self.themes_list_layout.setContentsMargins(0, 0, 0, 0)
+        
+        scroll = QScrollArea()
+        scroll.setWidget(self.themes_list)
+        scroll.setWidgetResizable(True)
+        scroll.setStyleSheet("""
+            QScrollArea { border:1px solid #2d3748; border-radius:8px; background:#1a1f2e; }
+            QScrollBar:vertical { background:#252d3d; width:12px; border-radius:6px; }
+            QScrollBar::handle:vertical { background:#667eea; border-radius:6px; min-height:30px; }
+        """)
+        layout.addWidget(scroll)
+        
+        self.refresh_themes_list()
+        
+        layout.addStretch()
+        return widget
+
+    def refresh_themes_list(self):
+        """Recarga la lista de temas personalizados"""
+        # Limpiar lista
+        while self.themes_list_layout.count():
+            item = self.themes_list_layout.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+        
+        # Cargar temas guardados desde theme.json
+        custom_themes = self.get_custom_themes()
+        for theme_name in custom_themes:
+            theme_row = QWidget()
+            row_layout = QHBoxLayout(theme_row)
+            row_layout.setContentsMargins(8, 8, 8, 8)
+            row_layout.setSpacing(8)
+            
+            label = QLabel(theme_name)
+            label.setStyleSheet("color:#e8eaed; padding:8px;")
+            row_layout.addWidget(label)
+            
+            apply_btn = QPushButton(t('btn_apply_preset'))
+            apply_btn.setObjectName('secondary')
+            apply_btn.setMaximumWidth(100)
+            apply_btn.clicked.connect(lambda _, n=theme_name: self.apply_custom_theme(n))
+            row_layout.addWidget(apply_btn)
+            
+            delete_btn = QPushButton(t('btn_delete_theme'))
+            delete_btn.setObjectName('secondary')
+            delete_btn.setMaximumWidth(80)
+            delete_btn.clicked.connect(lambda _, n=theme_name: self.delete_custom_theme(n))
+            row_layout.addWidget(delete_btn)
+            
+            row_layout.addStretch()
+            self.themes_list_layout.addWidget(theme_row)
+
+    def save_custom_theme(self):
+        """Guarda el tema actual como tema personalizado"""
+        name = self.theme_name_input.text().strip()
+        if not name:
+            QMessageBox.warning(self, t('error_generic'), t('msg_theme_name_required'))
+            return
+        
+        # Guardar en memoria - será persistido cuando cierre el diálogo
+        custom_themes = self.get_custom_themes()
+        if name not in custom_themes:
+            custom_themes[name] = self._current_theme.copy()
+        else:
+            custom_themes[name].update(self._current_theme)
+        
+        self.custom_themes_cache = custom_themes
+        self.theme_name_input.clear()
+        self.refresh_themes_list()
+        QMessageBox.information(self, t('msg_theme_saved'), f'{t("msg_theme_saved")}: {name}')
+
+    def apply_custom_theme(self, theme_name):
+        """Carga un tema personalizado"""
+        custom_themes = self.get_custom_themes()
+        if theme_name in custom_themes:
+            self._current_theme.update(custom_themes[theme_name])
+            self._color_scheme = {k: v for k, v in self._current_theme.items() if isinstance(v, str) and v.startswith('#')}
+            self.update_preview()
+
+    def delete_custom_theme(self, theme_name):
+        """Elimina un tema personalizado"""
+        reply = QMessageBox.question(self, t('error_generic'), t('msg_confirm_delete_theme').format(name=theme_name))
+        if reply == QMessageBox.Yes:
+            custom_themes = self.get_custom_themes()
+            if theme_name in custom_themes:
+                del custom_themes[theme_name]
+                self.custom_themes_cache = custom_themes
+                self.refresh_themes_list()
+                QMessageBox.information(self, t('msg_theme_deleted'), f'{t("msg_theme_deleted")}: {theme_name}')
+
+    def get_custom_themes(self):
+        """Obtiene los temas personalizados guardados (en caché para esta sesión)"""
+        if hasattr(self, 'custom_themes_cache'):
+            return self.custom_themes_cache
+        # En futuro, cargar desde archivo
+        return {}
+
+    def create_preview_tab(self):
+        """Tab de preview en vivo de los cambios"""
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+        layout.setContentsMargins(24, 24, 24, 24)
+        
+        # Crear un ejemplo de card para preview
+        self.preview_card = QFrame()
+        self.preview_card.setFrameStyle(QFrame.StyledPanel | QFrame.Raised)
+        self.preview_card.setFixedSize(250, 220)
+        card_layout = QVBoxLayout(self.preview_card)
+        card_layout.setContentsMargins(0, 0, 0, 0)
+        card_layout.setSpacing(0)
+        
+        # Imagen (ejemplo)
+        self.preview_image = QLabel()
+        self.preview_image.setFixedHeight(140)
+        self.preview_image.setAlignment(Qt.AlignCenter)
+        self.preview_image.setText("🎮")
+        self.preview_image.setStyleSheet("font-size:48px;")
+        card_layout.addWidget(self.preview_image)
+        
+        # Contenido (nombre, etc)
+        self.preview_content = QWidget()
+        content_layout = QVBoxLayout(self.preview_content)
+        content_layout.setContentsMargins(10, 10, 10, 10)
+        content_layout.setSpacing(4)
+        
+        self.preview_title = QLabel("Game Name")
+        self.preview_title.setStyleSheet("color:#e8eaed; font-weight:bold;")
+        content_layout.addWidget(self.preview_title)
+        
+        self.preview_path = QLabel("C:\\Games\\game.exe")
+        self.preview_path.setStyleSheet("color:#9aa0a6; font-size:10px;")
+        self.preview_path.setWordWrap(True)
+        content_layout.addWidget(self.preview_path)
+        
+        content_layout.addStretch()
+        card_layout.addWidget(self.preview_content)
+        
+        layout.addWidget(QLabel("Preview - Live Changes"))
+        layout.addWidget(self.preview_card)
+        layout.addStretch()
+        
+        self.update_preview()
+        return widget
+
+    def update_preview(self):
+        """Actualiza el preview con los cambios actuales"""
+        if not hasattr(self, 'preview_card'):
+            return
+        
+        c = self._current_theme
+        card_bg = c.get('card_bg', '#1a1f2e')
+        card_border = c.get('card_border', 'transparent')
+        card_hover_border = c.get('card_hover_border', '#667eea')
+        card_radius = c.get('card_radius', 12)
+        border_width = c.get('border_width', 2)
+        font_family = c.get('font_family', 'Segoe UI')
+        card_title_size = c.get('card_title_size', 15)
+        secondary_size = c.get('secondary_size', 12)
+        text_primary = c.get('text_primary', '#e8eaed')
+        text_secondary = c.get('text_secondary', '#9aa0a6')
+        accent_start = c.get('accent_start', '#667eea')
+        accent_end = c.get('accent_end', '#764ba2')
+        
+        # Aplicar estilos al preview
+        self.preview_card.setStyleSheet(f"""
+            QFrame {{
+                background-color: {card_bg};
+                border-radius: {card_radius}px;
+                border: {border_width}px solid {card_border};
+            }}
+        """)
+        
+        self.preview_image.setStyleSheet(f"""
+            background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
+                stop:0 {accent_start}, stop:1 {accent_end});
+            font-size: 48px;
+        """)
+        
+        self.preview_content.setStyleSheet(f"background-color: {card_bg};")
+        
+        title_font = QFont(font_family, card_title_size, QFont.Bold)
+        self.preview_title.setFont(title_font)
+        self.preview_title.setStyleSheet(f"color:{text_primary};")
+        
+        path_font = QFont(font_family, secondary_size - 2)
+        self.preview_path.setFont(path_font)
+        self.preview_path.setStyleSheet(f"color:{text_secondary};")
+
     def create_color_button(self, key):
         from PyQt5.QtWidgets import QColorDialog
         color = self._color_scheme.get(key, '#000000')
@@ -1524,16 +1748,19 @@ class ColorPickerDialog(QDialog):
                 self._current_theme[key] = hex_color
                 btn.setText(hex_color)
                 btn.setStyleSheet(f"QPushButton#colorBtn {{ background:{hex_color}; color:white; border:2px solid #667eea; }}")
+                self.update_preview()  # Actualizar preview en vivo
         btn.clicked.connect(pick)
         self._color_buttons[key] = btn
         return btn
 
     def reset_colors(self):
         self._color_scheme = self.default_colors()
+        self._current_theme.update(self.default_theme())
         for key, btn in self._color_buttons.items():
             color = self._color_scheme[key]
             btn.setText(color)
             btn.setStyleSheet(f"QPushButton#colorBtn {{ background:{color}; color:white; border:2px solid #2d3748; }}")
+        self.update_preview()  # Actualizar preview después de reset
 
     def pick_background(self):
         file_filter = 'All Supported (*.png *.jpg *.jpeg *.bmp *.gif *.mp4 *.webm *.mkv *.mov);;Static Images (*.png *.jpg *.jpeg *.bmp);;Animated GIF (*.gif);;Video (*.mp4 *.webm *.mkv *.mov)'
@@ -1558,7 +1785,8 @@ class ColorPickerDialog(QDialog):
             'background_type': self.bg_type_combo.currentData(),
             'background_opacity': round(self.opacity_slider.value()/100.0, 3),
             'color_scheme': self._color_scheme,
-            'theme': self._current_theme  # Retornar tema completo con tipografía y espaciado
+            'theme': self._current_theme,  # Retornar tema completo con tipografía y espaciado
+            'custom_themes': getattr(self, 'custom_themes_cache', {})  # Guardar temas personalizados
         }
 
     def apply_history(self, history_list):
@@ -2042,7 +2270,7 @@ class GameLibrary(QMainWindow):
         self.bg_pixmap = QPixmap.fromImage(img)
         self.update()
 
-    def save_theme(self, background_image, background_opacity, color_scheme=None, background_type='static', theme=None):
+    def save_theme(self, background_image, background_opacity, color_scheme=None, background_type='static', theme=None, custom_themes=None):
         # Actualizar historial (máx 8, sin duplicados, vacío si no hay imagen)
         new_hist = list(self.bg_history or [])
         if background_image:
@@ -2071,6 +2299,7 @@ class GameLibrary(QMainWindow):
             'background_history': new_hist,
             'color_scheme': color_scheme or {},
             'theme': theme or {},  # Guardar tema completo
+            'custom_themes': custom_themes or {},  # Guardar temas personalizados
             'custom_folders': self.custom_folders,
             'folder_icons': self.folder_icons,
             'last_folder': self.active_folder,
@@ -3246,7 +3475,7 @@ class GameLibrary(QMainWindow):
             pass
         if dlg.exec_() == QDialog.Accepted:
             data = dlg.get_data()
-            self.save_theme(data['background_image'], data['background_opacity'], data.get('color_scheme'), data.get('background_type', 'static'), data.get('theme'))
+            self.save_theme(data['background_image'], data['background_opacity'], data.get('color_scheme'), data.get('background_type', 'static'), data.get('theme'), data.get('custom_themes'))
 
         
     def reload_ui_text(self, lang=None):
