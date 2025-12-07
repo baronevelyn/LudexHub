@@ -269,6 +269,10 @@ This project is open source and available under the MIT License.
 
 Developed with ❤️ by Eden
 
+## 🎨 Credits
+
+Special thanks to **[Poxy](https://x.com/Poxyhh)** for designing the beautiful LudexHub logo!
+
 ---
 
 ## 🙏 Contributing

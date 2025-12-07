@@ -12,8 +12,9 @@ from epic_scanner import EpicScanner
 from i18n import I18n, t
 from font_installer import ensure_fonts_installed
 
-# Version management
+# Version and application info
 __version__ = "1.1.0"
+__editor__ = "CallMeEden"
 from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
                              QHBoxLayout, QGridLayout, QPushButton, QLabel, 
                              QLineEdit, QDialog, QScrollArea, QFrame, QComboBox,

@@ -402,7 +402,7 @@ TRANSLATIONS = {
         
         # Primera ejecución
         'first_run_title': 'Welcome to Game Library',
-        'first_run_msg': 'Data folder has been created. Do you want Game Library to open when your PC starts?',
+        'first_run_msg': 'Data folder has been created. Do you want LudexHub to open when your PC starts?',
         
         # Otros
         'btn_yes': 'Yes',

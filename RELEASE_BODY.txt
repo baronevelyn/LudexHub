@@ -1,0 +1,57 @@
+🎮 LudexHub v1.1.0 Release
+
+✨ MAJOR FEATURES
+
+1. Auto-Update System (NEW!)
+   - Built-in GitHub integration for automatic updates
+   - One-click installation with changelog viewer
+   - Smart rate-limiting and automatic backups
+   - Configurable auto-check on startup
+
+2. 6 New Theme Presets
+   - Cyberpunk: Neon aesthetic with JetBrains Mono
+   - Sunset: Warm, professional color palette
+   - Forest: Nature-inspired green design
+   - Ocean: Cool blue business theme
+   - Retro: 80s nostalgia with bold typography
+   - Minimal: Clean, distraction-free interface
+
+3. Cache Management
+   - One-click cache clearing in Settings
+   - Real-time freed space calculation
+   - Improves app performance and disk usage
+
+📊 IMPROVEMENTS
+
+- Playtime tracking system (automatic game launch detection)
+- Favorites system with dedicated filtering
+- Advanced filtering and sorting options
+- GIF/Video background support
+- Internationalization: Full EN/ES support (60+ keys)
+- Complete documentation and guides
+
+🔧 TECHNICAL
+
+- Python 3.10.11 with PyQt5
+- All dependencies included in executable
+- 87.04 MB standalone .exe
+- Windows 10/11 compatible
+- Zero breaking changes from v1.0
+
+📖 DOCUMENTATION
+
+- README.md (updated to v1.1)
+- CHANGELOG.md (comprehensive feature list)
+- ROADMAP.md (all features marked complete)
+- RELEASE_CHECKLIST.md (QA guide)
+- BUILD_DEPLOYMENT_GUIDE.md (technical setup)
+
+🎯 READY FOR PRODUCTION
+
+Executable: LudexHub.exe (87.04 MB)
+Testing: All features verified ✅
+Syntax: 100% validation pass ✅
+Documentation: Complete ✅
+Translations: ES/EN Complete ✅
+
+Download: LudexHub-v1.1.0.exe
