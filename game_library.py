@@ -1626,7 +1626,18 @@ class ColorPickerDialog(QDialog):
             QComboBox::drop-down { border:none; }
             QComboBox QAbstractItemView { background:#252d3d; border:1px solid #2d3748; color:#e8eaed; selection-background-color:#667eea; }
         """)
-        self.preset_combo.addItems([t('preset_base'), t('preset_light'), t('preset_dark'), t('preset_pink')])
+        self.preset_combo.addItems([
+            t('preset_base'), 
+            t('preset_light'), 
+            t('preset_dark'), 
+            t('preset_pink'),
+            t('preset_cyberpunk'),
+            t('preset_sunset'),
+            t('preset_forest'),
+            t('preset_ocean'),
+            t('preset_retro'),
+            t('preset_minimal')
+        ])
         self.preset_combo.currentTextChanged.connect(self.apply_preset)
         preset_layout.addWidget(self.preset_combo)
         preset_layout.addStretch()

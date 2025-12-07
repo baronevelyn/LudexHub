@@ -50,11 +50,7 @@
   - Typography (font family, sizes)
   - Spacing & Layout (card radius, padding, borders)
   - Color Scheme (16+ color values)
-- [x] **Theme Presets** - 10 Complete presets with typography and spacing:
-  - Base (Modern dark theme)
-  - Light (Professional light theme)
-  - Dark (Deep dark theme with purple accents)
-  - Pink (Vibrant pink theme)
+- [x] **Theme Presets** - 6 Complete new presets with typography and spacing:
   - **Cyberpunk** - Neon colors, JetBrains Mono font, sharp borders
   - **Sunset** - Warm orange/red, Inter font, smooth borders
   - **Forest** - Green nature theme, Roboto font, natural styling
