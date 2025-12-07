@@ -1367,7 +1367,7 @@ class ColorPickerDialog(QDialog):
         layout.setContentsMargins(24, 24, 24, 24)
 
         # Font Family
-        layout.addWidget(QLabel('Font Family'))
+        layout.addWidget(QLabel(t('label_font_family')))
         font_combo = QComboBox()
         font_combo.setStyleSheet("""
             QComboBox { background:#252d3d; border:2px solid #2d3748; border-radius:8px; padding:8px; color:#e8eaed; min-width:150px; }
@@ -1375,19 +1375,25 @@ class ColorPickerDialog(QDialog):
             QComboBox::drop-down { border:none; }
             QComboBox QAbstractItemView { background:#252d3d; border:1px solid #2d3748; color:#e8eaed; selection-background-color:#667eea; }
         """)
-        fonts = ['Segoe UI', 'Arial', 'Calibri', 'Tahoma', 'Courier New', 'Georgia']
-        font_combo.addItems(fonts)
+        # Obtener todas las fuentes del sistema
+        from PyQt5.QtGui import QFontDatabase
+        font_db = QFontDatabase()
+        system_fonts = sorted(font_db.families())
+        font_combo.addItems(system_fonts)
         current_font = self._current_theme.get('font_family', 'Segoe UI')
         idx = font_combo.findText(current_font)
         if idx >= 0:
             font_combo.setCurrentIndex(idx)
+        else:
+            # Si no encuentra la fuente, usar la primera disponible
+            font_combo.setCurrentIndex(0)
         def on_font_change(idx):
             self._current_theme['font_family'] = font_combo.currentText()
         font_combo.currentIndexChanged.connect(on_font_change)
         layout.addWidget(font_combo)
 
         # Title Size
-        layout.addWidget(QLabel('Title Size (14-24px)'))
+        layout.addWidget(QLabel(t('label_title_size')))
         title_slider = QSlider(Qt.Horizontal)
         title_slider.setMinimum(14)
         title_slider.setMaximum(24)
@@ -1402,7 +1408,7 @@ class ColorPickerDialog(QDialog):
         layout.addWidget(title_label)
 
         # Card Title Size
-        layout.addWidget(QLabel('Card Title Size (12-20px)'))
+        layout.addWidget(QLabel(t('label_card_title_size')))
         card_title_slider = QSlider(Qt.Horizontal)
         card_title_slider.setMinimum(12)
         card_title_slider.setMaximum(20)
@@ -1417,7 +1423,7 @@ class ColorPickerDialog(QDialog):
         layout.addWidget(card_title_label)
 
         # Secondary Size
-        layout.addWidget(QLabel('Secondary Text Size (10-16px)'))
+        layout.addWidget(QLabel(t('label_secondary_size')))
         secondary_slider = QSlider(Qt.Horizontal)
         secondary_slider.setMinimum(10)
         secondary_slider.setMaximum(16)
@@ -1442,7 +1448,7 @@ class ColorPickerDialog(QDialog):
         layout.setContentsMargins(24, 24, 24, 24)
 
         # Card Radius
-        layout.addWidget(QLabel('Card Border Radius (0-20px)'))
+        layout.addWidget(QLabel(t('label_card_radius')))
         radius_slider = QSlider(Qt.Horizontal)
         radius_slider.setMinimum(0)
         radius_slider.setMaximum(20)
@@ -1457,7 +1463,7 @@ class ColorPickerDialog(QDialog):
         layout.addWidget(radius_label)
 
         # Card Padding
-        layout.addWidget(QLabel('Card Padding (4-20px)'))
+        layout.addWidget(QLabel(t('label_card_padding')))
         padding_slider = QSlider(Qt.Horizontal)
         padding_slider.setMinimum(4)
         padding_slider.setMaximum(20)
@@ -1472,7 +1478,7 @@ class ColorPickerDialog(QDialog):
         layout.addWidget(padding_label)
 
         # Button Radius
-        layout.addWidget(QLabel('Button Border Radius (4-12px)'))
+        layout.addWidget(QLabel(t('label_button_radius')))
         btn_radius_slider = QSlider(Qt.Horizontal)
         btn_radius_slider.setMinimum(4)
         btn_radius_slider.setMaximum(12)
@@ -1487,7 +1493,7 @@ class ColorPickerDialog(QDialog):
         layout.addWidget(btn_radius_label)
 
         # Border Width
-        layout.addWidget(QLabel('Border Width (1-3px)'))
+        layout.addWidget(QLabel(t('label_border_width')))
         border_slider = QSlider(Qt.Horizontal)
         border_slider.setMinimum(1)
         border_slider.setMaximum(3)

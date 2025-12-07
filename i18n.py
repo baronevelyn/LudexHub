@@ -77,6 +77,19 @@ TRANSLATIONS = {
         'tab_card_colors': 'Colores de Tarjetas',
         'tab_typography': 'Tipografía',
         'tab_spacing_layout': 'Espaciado y Diseño',
+        
+        # Tipografía
+        'label_font_family': 'Familia de Fuente',
+        'label_title_size': 'Tamaño de Título (14-24px)',
+        'label_card_title_size': 'Tamaño de Título de Tarjeta (12-20px)',
+        'label_secondary_size': 'Tamaño de Texto Secundario (10-16px)',
+        
+        # Espaciado
+        'label_card_radius': 'Radio de Borde de Tarjeta (0-20px)',
+        'label_card_padding': 'Relleno de Tarjeta (4-20px)',
+        'label_button_radius': 'Radio de Borde de Botón (4-12px)',
+        'label_border_width': 'Ancho de Borde (1-3px)',
+        
         'label_bg_image': 'Imagen de Fondo (opcional)',
         'placeholder_bg_image': 'Ruta local a fondo (PNG/JPG/GIF/MP4/WebM)',
         'label_opacity': 'Opacidad del Fondo (0 = invisible, 40 = más visible)',
@@ -226,7 +239,20 @@ TRANSLATIONS = {
         'tab_general_colors': 'General Colors',
         'tab_card_colors': 'Card Colors',
         'tab_typography': 'Typography',
-        'tab_spacing_layout': 'Spacing & Layout',
+        'tab_spacing_layout': 'Spacing and Layout',
+        
+        # Typography
+        'label_font_family': 'Font Family',
+        'label_title_size': 'Title Size (14-24px)',
+        'label_card_title_size': 'Card Title Size (12-20px)',
+        'label_secondary_size': 'Secondary Text Size (10-16px)',
+        
+        # Spacing
+        'label_card_radius': 'Card Border Radius (0-20px)',
+        'label_card_padding': 'Card Padding (4-20px)',
+        'label_button_radius': 'Button Border Radius (4-12px)',
+        'label_border_width': 'Border Width (1-3px)',
+        
         'label_bg_image': 'Background Image (optional)',
         'placeholder_bg_image': 'Local background path (PNG/JPG/GIF/MP4/WebM)',
         'label_opacity': 'Background Opacity (0 = invisible, 40 = more visible)',
