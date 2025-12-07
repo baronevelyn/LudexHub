@@ -1,0 +1,11 @@
+        except Exception:
+            pass
+        self.setup_ui()
+        self.apply_color_scheme_fixed()
+        self.render_games()
+        self.enable_shadow()
+        
+        # Check automático de updates al iniciar (si está habilitado)
+        QTimer.singleShot(2000, self._auto_check_updates)
+
+    def enable_shadow(self):

@@ -11,6 +11,9 @@ from steam_scanner import SteamScanner
 from epic_scanner import EpicScanner
 from i18n import I18n, t
 from font_installer import ensure_fonts_installed
+
+# Version management
+__version__ = "1.1.0"
 from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
                              QHBoxLayout, QGridLayout, QPushButton, QLabel, 
                              QLineEdit, QDialog, QScrollArea, QFrame, QComboBox,
@@ -1537,6 +1540,148 @@ class ColorPickerDialog(QDialog):
         playtime_layout.addStretch()
         layout.addWidget(playtime_container)
         
+        # Toggle de auto-update
+        auto_update_container = QWidget()
+        auto_update_layout = QHBoxLayout(auto_update_container)
+        auto_update_layout.setContentsMargins(0,0,0,0)
+        auto_update_layout.setSpacing(10)
+
+        self.auto_update_checkbox = QCheckBox(t('label_auto_update'))
+        try:
+            parent = self.parent() if isinstance(self.parent(), GameLibrary) else None
+            current = False
+            if parent and parent.theme_file.exists():
+                data = json.load(open(parent.theme_file, 'r', encoding='utf-8'))
+                current = data.get('auto_update_enabled', False)
+            self.auto_update_checkbox.setChecked(current)
+        except Exception:
+            self.auto_update_checkbox.setChecked(False)
+
+        def on_auto_update_toggle(state):
+            parent = self.parent() if isinstance(self.parent(), GameLibrary) else None
+            if parent:
+                enabled = state == Qt.Checked
+                try:
+                    data = json.load(open(parent.theme_file, 'r', encoding='utf-8'))
+                    data['auto_update_enabled'] = enabled
+                    json.dump(data, open(parent.theme_file, 'w', encoding='utf-8'), indent=2, ensure_ascii=False)
+                except Exception:
+                    pass
+        self.auto_update_checkbox.stateChanged.connect(on_auto_update_toggle)
+        auto_update_layout.addWidget(self.auto_update_checkbox)
+
+        hint_update = QLabel(t('hint_auto_update'))
+        hint_update.setStyleSheet('color:#9aa0a6;')
+        auto_update_layout.addWidget(hint_update)
+        auto_update_layout.addStretch()
+        layout.addWidget(auto_update_container)
+        
+        # Botón para limpiar caché
+        cache_container = QWidget()
+        cache_layout = QVBoxLayout(cache_container)
+        cache_layout.setContentsMargins(0,0,0,0)
+        cache_layout.setSpacing(8)
+        
+        cache_label = QLabel(t('label_clear_cache'))
+        cache_label.setStyleSheet('color:#9aa0a6; font-size:12px;')
+        cache_layout.addWidget(cache_label)
+        
+        clear_cache_btn = QPushButton(t('btn_clear_cache'))
+        clear_cache_btn.setStyleSheet("""
+            QPushButton {
+                background:#dc2626;
+                border:none;
+                border-radius:8px;
+                padding:10px 20px;
+                color:white;
+                font-weight:600;
+                min-width:150px;
+                max-width:200px;
+            }
+            QPushButton:hover {
+                background:#b91c1c;
+            }
+            QPushButton:pressed {
+                background:#991b1b;
+            }
+        """)
+        
+        def clear_cache():
+            reply = QMessageBox.question(
+                self,
+                t('btn_clear_cache'),
+                t('confirm_clear_cache'),
+                QMessageBox.Yes | QMessageBox.No,
+                QMessageBox.No
+            )
+            
+            if reply == QMessageBox.Yes:
+                try:
+                    parent = self.parent() if isinstance(self.parent(), GameLibrary) else None
+                    if parent:
+                        size_mb = parent.clear_application_cache()
+                        QMessageBox.information(
+                            self,
+                            t('cache_cleared_title'),
+                            t('cache_cleared_message').format(size=f"{size_mb:.2f}")
+                        )
+                except Exception as e:
+                    QMessageBox.warning(
+                        self,
+                        t('cache_cleared_title'),
+                        t('cache_clear_error').format(error=str(e))
+                    )
+        
+        clear_cache_btn.clicked.connect(clear_cache)
+        cache_layout.addWidget(clear_cache_btn)
+        layout.addWidget(cache_container)
+        
+        # Botón de actualización
+        update_container = QWidget()
+        update_layout = QVBoxLayout(update_container)
+        update_layout.setSpacing(8)
+        update_layout.setContentsMargins(0, 0, 0, 0)
+        
+        # Import version here
+        from game_library import __version__
+        
+        version_label = QLabel(t('label_current_version').format(version=__version__))
+        version_label.setStyleSheet('color:#9aa0a6; font-size:12px;')
+        update_layout.addWidget(version_label)
+        
+        check_updates_btn = QPushButton(t('btn_check_updates'))
+        check_updates_btn.setStyleSheet("""
+            QPushButton {
+                background:#1a73e8;  /* Blue */
+                border:none;
+                border-radius:8px;
+                padding:10px 20px;
+                color:white;
+                font-weight:600;
+                min-width:150px;
+                max-width:250px;
+            }
+            QPushButton:hover { background:#1557b0; }
+            QPushButton:pressed { background:#0d47a1; }
+            QPushButton:disabled { background:#3c4043; color:#5f6368; }
+        """)
+        
+        def check_for_updates():
+            try:
+                parent = self.parent() if isinstance(self.parent(), GameLibrary) else None
+                if parent:
+                    parent.check_for_updates_ui()
+            except Exception as e:
+                QMessageBox.warning(
+                    self,
+                    t('update_error_title'),
+                    t('update_check_error').format(error=str(e))
+                )
+        
+        check_updates_btn.clicked.connect(check_for_updates)
+        update_layout.addWidget(check_updates_btn)
+        layout.addWidget(update_container)
+        
         layout.addStretch()
         return widget
 
@@ -2336,6 +2481,9 @@ class GameLibrary(QMainWindow):
         self.apply_color_scheme_fixed()
         self.render_games()
         self.enable_shadow()
+        
+        # Check automático de updates al iniciar (si está habilitado)
+        QTimer.singleShot(2000, self._auto_check_updates)
 
     def enable_shadow(self):
         try:
@@ -4106,6 +4254,338 @@ class GameLibrary(QMainWindow):
             self._finish_play_session()
         elif enabled and self._play_session and not self.playtime_timer.isActive():
             self.playtime_timer.start()
+    
+    def clear_application_cache(self):
+        """Eliminar toda la caché de la aplicación y retornar el tamaño liberado en MB"""
+        import shutil
+        total_size = 0
+        
+        # Directorios a limpiar
+        cache_dirs = [
+            Path.home() / 'AppData' / 'Local' / 'Temp' / 'game_library_cache',
+            Path(__file__).parent / '__pycache__',
+            Path(__file__).parent / 'fonts' / '__pycache__',
+        ]
+        
+        # Archivos de caché específicos
+        cache_files = [
+            Path(__file__).parent / '.cache',
+            Path(__file__).parent / 'image_cache',
+        ]
+        
+        # Eliminar directorios
+        for cache_dir in cache_dirs:
+            if cache_dir.exists():
+                try:
+                    # Calcular tamaño antes de eliminar
+                    for file in cache_dir.rglob('*'):
+                        if file.is_file():
+                            total_size += file.stat().st_size
+                    shutil.rmtree(cache_dir)
+                except Exception as e:
+                    print(f"Error eliminando {cache_dir}: {e}")
+        
+        # Eliminar archivos individuales
+        for cache_file in cache_files:
+            if cache_file.exists():
+                try:
+                    if cache_file.is_file():
+                        total_size += cache_file.stat().st_size
+                        cache_file.unlink()
+                    elif cache_file.is_dir():
+                        for file in cache_file.rglob('*'):
+                            if file.is_file():
+                                total_size += file.stat().st_size
+                        shutil.rmtree(cache_file)
+                except Exception as e:
+                    print(f"Error eliminando {cache_file}: {e}")
+        
+        # Limpiar caché de imágenes en memoria (pixmap cache)
+        try:
+            from PyQt5.QtGui import QPixmapCache
+            QPixmapCache.clear()
+        except:
+            pass
+        
+        # Convertir bytes a MB
+        size_mb = total_size / (1024 * 1024)
+        return size_mb
+    
+    def check_for_updates_ui(self):
+        """Check for updates and show UI dialogs"""
+        from auto_updater import AutoUpdater
+        from datetime import datetime
+        
+        # Show checking message
+        progress = QProgressDialog(t('label_checking_updates'), None, 0, 0, self)
+        progress.setWindowModality(Qt.WindowModal)
+        progress.setWindowTitle(t('btn_check_updates'))
+        progress.setCancelButton(None)
+        progress.setMinimumDuration(0)
+        progress.show()
+        QApplication.processEvents()
+        
+        try:
+            updater = AutoUpdater(__version__)
+            update_info = updater.check_for_updates()
+            
+            progress.close()
+            
+            if update_info:
+                # Format date
+                try:
+                    pub_date = datetime.fromisoformat(update_info.published_at.replace('Z', '+00:00'))
+                    formatted_date = pub_date.strftime('%Y-%m-%d')
+                except:
+                    formatted_date = update_info.published_at[:10]
+                
+                # Format size in MB
+                size_mb = update_info.asset_size / (1024 * 1024)
+                
+                # Show update available dialog
+                reply = QMessageBox.question(
+                    self,
+                    t('update_available_title'),
+                    t('update_available_message').format(
+                        version=update_info.version,
+                        date=formatted_date,
+                        size=f"{size_mb:.1f}"
+                    ),
+                    QMessageBox.Yes | QMessageBox.No,
+                    QMessageBox.Yes
+                )
+                
+                if reply == QMessageBox.Yes:
+                    self.download_and_install_update(updater, update_info)
+            else:
+                # No updates available
+                QMessageBox.information(
+                    self,
+                    t('no_update_title'),
+                    t('no_update_message')
+                )
+        
+        except Exception as e:
+            progress.close()
+            QMessageBox.warning(
+                self,
+                t('update_error_title'),
+                t('update_check_error').format(error=str(e))
+            )
+    
+    def download_and_install_update(self, updater, update_info):
+        """Download and install an update with progress bar"""
+        # Create progress dialog
+        progress = QProgressDialog(
+            t('downloading_update'),
+            t('btn_cancel'),
+            0, 100,
+            self
+        )
+        progress.setWindowModality(Qt.WindowModal)
+        progress.setWindowTitle(t('update_available_title'))
+        progress.setMinimumDuration(0)
+        progress.show()
+        
+        download_cancelled = [False]
+        
+        def progress_callback(downloaded, total):
+            if progress.wasCanceled():
+                download_cancelled[0] = True
+                return
+            
+            if total > 0:
+                percent = int((downloaded / total) * 100)
+                progress.setValue(percent)
+                
+                downloaded_mb = downloaded / (1024 * 1024)
+                total_mb = total / (1024 * 1024)
+                progress.setLabelText(
+                    t('download_progress').format(
+                        percent=percent,
+                        downloaded=f"{downloaded_mb:.1f}",
+                        total=f"{total_mb:.1f}"
+                    )
+                )
+            
+            QApplication.processEvents()
+        
+        try:
+            # Download update
+            update_file = updater.download_update(update_info, progress_callback)
+            
+            if download_cancelled[0] or not update_file:
+                progress.close()
+                return
+            
+            # Verify checksum (optional - we just check if file is valid)
+            progress.setLabelText(t('installing_update'))
+            progress.setValue(100)
+            QApplication.processEvents()
+            
+            if not updater.verify_checksum(update_file):
+                raise Exception("Checksum verification failed")
+            
+            progress.close()
+            
+            # Mostrar changelog antes de reiniciar
+            try:
+                changelog_text = update_info.changelog or t('no_changelog')
+                self.show_changelog_dialog(update_info.version, changelog_text)
+            except Exception:
+                pass
+            
+            # Show success message
+            reply = QMessageBox.information(
+                self,
+                t('update_success_title'),
+                t('update_success_message'),
+                QMessageBox.Ok
+            )
+            
+            # Install and restart
+            if updater.install_update(update_file):
+                QApplication.quit()
+        
+        except Exception as e:
+            progress.close()
+            QMessageBox.warning(
+                self,
+                t('update_error_title'),
+                t('update_error_message').format(error=str(e))
+            )
+    
+    def _auto_check_updates(self):
+        """Check automático de updates al iniciar (solo si está habilitado)"""
+        try:
+            # Verificar si el auto-update está habilitado
+            if not self.theme_file.exists():
+                return
+            
+            data = json.load(open(self.theme_file, 'r', encoding='utf-8'))
+            auto_update_enabled = data.get('auto_update_enabled', False)
+            
+            if not auto_update_enabled:
+                return
+            
+            # Check for updates en background
+            from auto_updater import AutoUpdater
+            from datetime import datetime
+            
+            updater = AutoUpdater(__version__)
+            
+            # Solo verificar si ha pasado suficiente tiempo
+            if not updater.should_check_for_updates():
+                return
+            
+            update_info = updater.check_for_updates()
+            
+            if update_info:
+                # Mostrar notificación de update disponible
+                try:
+                    pub_date = datetime.fromisoformat(update_info.published_at.replace('Z', '+00:00'))
+                    formatted_date = pub_date.strftime('%Y-%m-%d')
+                except:
+                    formatted_date = update_info.published_at[:10]
+                
+                size_mb = update_info.asset_size / (1024 * 1024)
+                
+                reply = QMessageBox.question(
+                    self,
+                    t('update_available_title'),
+                    t('update_available_message').format(
+                        version=update_info.version,
+                        date=formatted_date,
+                        size=f"{size_mb:.1f}"
+                    ),
+                    QMessageBox.Yes | QMessageBox.No,
+                    QMessageBox.No  # Default to No for auto-check
+                )
+                
+                if reply == QMessageBox.Yes:
+                    self.download_and_install_update(updater, update_info)
+        except Exception as e:
+            # Silently fail auto-check to not disturb user
+            print(f"Auto-update check failed: {e}")
+    
+    def show_changelog_dialog(self, version, changelog):
+        """Mostrar diálogo con el changelog de la actualización"""
+        dialog = QDialog(self)
+        dialog.setWindowTitle(t('changelog_dialog_title'))
+        dialog.setMinimumSize(600, 400)
+        dialog.setStyleSheet(f"""
+            QDialog {{
+                background: {self.color_scheme.get('bg_gradient_start', '#0f1419')};
+            }}
+        """)
+        
+        layout = QVBoxLayout(dialog)
+        layout.setSpacing(16)
+        layout.setContentsMargins(24, 24, 24, 24)
+        
+        # Título
+        title_label = QLabel(t('changelog_title').format(version=version))
+        title_label.setStyleSheet(f"""
+            font-size: 20px;
+            font-weight: bold;
+            color: {self.color_scheme.get('text_primary', '#e8eaed')};
+            margin-bottom: 16px;
+        """)
+        layout.addWidget(title_label)
+        
+        # Scroll area para el changelog
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setStyleSheet(f"""
+            QScrollArea {{
+                border: 2px solid {self.color_scheme.get('input_border', '#2d3748')};
+                border-radius: 8px;
+                background: {self.color_scheme.get('card_bg', '#1a1f2e')};
+            }}
+            QScrollBar:vertical {{
+                background: {self.color_scheme.get('input_bg', '#1a1f2e')};
+                width: 12px;
+                border-radius: 6px;
+            }}
+            QScrollBar::handle:vertical {{
+                background: {self.color_scheme.get('accent_start', '#667eea')};
+                border-radius: 6px;
+            }}
+        """)
+        
+        changelog_label = QLabel(changelog)
+        changelog_label.setWordWrap(True)
+        changelog_label.setTextFormat(Qt.PlainText)
+        changelog_label.setStyleSheet(f"""
+            color: {self.color_scheme.get('text_secondary', '#9aa0a6')};
+            padding: 16px;
+            font-size: 13px;
+            line-height: 1.6;
+        """)
+        
+        scroll.setWidget(changelog_label)
+        layout.addWidget(scroll)
+        
+        # Botón cerrar
+        close_btn = QPushButton(t('btn_close'))
+        close_btn.setStyleSheet(f"""
+            QPushButton {{
+                background: {self.color_scheme.get('accent_start', '#667eea')};
+                border: none;
+                border-radius: 8px;
+                padding: 10px 24px;
+                color: white;
+                font-weight: 600;
+                min-width: 100px;
+            }}
+            QPushButton:hover {{
+                background: {self.color_scheme.get('accent_end', '#764ba2')};
+            }}
+        """)
+        close_btn.clicked.connect(dialog.accept)
+        layout.addWidget(close_btn, alignment=Qt.AlignRight)
+        
+        dialog.exec_()
             
     def render_games(self):
         """Renderizar la lista de juegos"""
