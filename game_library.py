@@ -78,15 +78,21 @@ class GameCard(QFrame):
         card_border = c.get('card_border', 'transparent')
         card_hover_border = c.get('card_hover_border', '#667eea')
         card_hover_bg = c.get('card_hover_bg', '#252d3d')
+        card_radius = c.get('card_radius', 12)
+        border_width = c.get('border_width', 2)
+        font_family = c.get('font_family', 'Segoe UI')
+        card_title_size = c.get('card_title_size', 15)
+        secondary_size = c.get('secondary_size', 12)
         
         self.setStyleSheet(f"""
             GameCard {{
                 background-color: {card_bg};
-                border-radius: 12px;
-                border: 2px solid {card_border};
+                border-radius: {card_radius}px;
+                border: {border_width}px solid {card_border};
+                font-family: {font_family};
             }}
             GameCard:hover {{
-                border: 2px solid {card_hover_border};
+                border: {border_width}px solid {card_hover_border};
                 background-color: {card_hover_bg};
             }}
         """)
@@ -134,21 +140,21 @@ class GameCard(QFrame):
         self.favorite_btn = QPushButton('⭐' if self.is_favorite else '☆')
         self.favorite_btn.setFixedSize(40, 40)
         self.favorite_btn.setVisible(False)  # Oculto por defecto
-        self.favorite_btn.setStyleSheet("""
-            QPushButton {
+        self.favorite_btn.setStyleSheet(f"""
+            QPushButton {{
                 background-color: rgba(0, 0, 0, 200);
                 border: none;
                 border-radius: 20px;
                 font-size: 20px;
                 color: #FFD700;
                 font-weight: bold;
-            }
-            QPushButton:hover {
+            }}
+            QPushButton:hover {{
                 background-color: rgba(0, 0, 0, 240);
-            }
-            QPushButton:pressed {
+            }}
+            QPushButton:pressed {{
                 background-color: rgba(0, 0, 0, 180);
-            }
+            }}
         """)
         def toggle_favorite():
             self.is_favorite = not self.is_favorite
@@ -167,15 +173,17 @@ class GameCard(QFrame):
             name_label = QLabel(self.game['name'])
             text_color = c.get('text_primary', '#e8eaed')
             text_secondary = c.get('text_secondary', '#9aa0a6')
-            name_label.setStyleSheet(f"""
-                color:{text_color}; font-size:22px; font-weight:800;
-            """)
+            name_font = QFont(font_family, card_title_size + 6, QFont.Bold)
+            name_label.setFont(name_font)
+            name_label.setStyleSheet(f"color:{text_color};")
             name_label.setWordWrap(True)
             right_layout.addWidget(name_label)
 
             playtime_seconds = int(self.game.get('total_play_time', 0) or 0)
             playtime_label = QLabel(t('label_playtime', value=self._format_playtime(playtime_seconds)))
-            playtime_label.setStyleSheet(f"color:{text_secondary}; font-size:13px;")
+            playtime_font = QFont(font_family, secondary_size)
+            playtime_label.setFont(playtime_font)
+            playtime_label.setStyleSheet(f"color:{text_secondary};")
             self.playtime_label = playtime_label
             right_layout.addWidget(playtime_label)
             # Badge Steam si aplica
@@ -221,7 +229,7 @@ class GameCard(QFrame):
             icon_label.setAlignment(QtCore.Qt.AlignCenter)
             icon_label.setStyleSheet(f"""
                 background-color: {card_hover_bg};
-                border-radius: 8px;
+                border-radius: {button_radius}px;
                 font-size: 24px;
             """)
             self.icon_label = icon_label
@@ -240,26 +248,25 @@ class GameCard(QFrame):
 
             name_label = QLabel(self.game['name'])
             text_color = c.get('text_primary', '#e8eaed')
-            name_label.setStyleSheet(f"""
-                color: {text_color};
-                font-size: 16px;
-                font-weight: bold;
-            """)
+            name_font = QFont(font_family, card_title_size, QFont.Bold)
+            name_label.setFont(name_font)
+            name_label.setStyleSheet(f"color: {text_color};")
             name_label.setWordWrap(False)
 
             path_label = QLabel(self.game['path'])
             text_secondary = c.get('text_secondary', '#9aa0a6')
-            path_label.setStyleSheet(f"""
-                color: {text_secondary};
-                font-size: 11px;
-            """)
+            path_font = QFont(font_family, secondary_size - 1)
+            path_label.setFont(path_font)
+            path_label.setStyleSheet(f"color: {text_secondary};")
             path_label.setWordWrap(False)
 
             info_layout.addWidget(name_label)
             info_layout.addWidget(path_label)
             playtime_seconds = int(self.game.get('total_play_time', 0) or 0)
             playtime_label = QLabel(t('label_playtime', value=self._format_playtime(playtime_seconds)))
-            playtime_label.setStyleSheet(f"color: {text_secondary}; font-size: 11px;")
+            playtime_font = QFont(font_family, secondary_size - 1)
+            playtime_label.setFont(playtime_font)
+            playtime_label.setStyleSheet(f"color: {text_secondary};")
             self.playtime_label = playtime_label
             info_layout.addWidget(playtime_label)
             # Badge Steam si aplica
@@ -1685,7 +1692,7 @@ class GameLibrary(QMainWindow):
             print("Shadow effect no disponible", e)
 
     def apply_color_scheme_fixed(self):
-        """Aplicar el esquema de colores personalizado a toda la interfaz"""
+        """Aplicar el esquema de colores, tipografía y espaciado personalizado a toda la interfaz"""
         if not self.color_scheme:
             return
         
@@ -1704,10 +1711,23 @@ class GameLibrary(QMainWindow):
         input_bg = c.get('input_bg', '#1a1f2e')
         input_border = c.get('input_border', '#2d3748')
         
+        # Extraer tipografía del color_scheme (que ahora incluye toda la información de tema)
+        font_family = c.get('font_family', 'Segoe UI')
+        title_size = c.get('title_size', 20)
+        card_title_size = c.get('card_title_size', 15)
+        secondary_size = c.get('secondary_size', 12)
+        
+        # Extraer espaciado
+        card_radius = c.get('card_radius', 12)
+        card_padding = c.get('card_padding', 12)
+        button_radius = c.get('button_radius', 8)
+        border_width = c.get('border_width', 2)
+        
         style_template = """
             QMainWindow {{
                 background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
                     stop:0 {bg1}, stop:1 {bg2});
+                font-family: {font_family};
             }}
             QScrollArea {{
                 border: none;
@@ -1732,26 +1752,32 @@ class GameLibrary(QMainWindow):
             bg1=bg_start,
             bg2=bg_end,
             cbg=card_bg,
-            chbg=card_hover_bg
+            chbg=card_hover_bg,
+            font_family=font_family
         )
         self.setStyleSheet(style)
         
         # Aplicar colores a la barra superior
         if hasattr(self, 'top_bar'):
-            self.top_bar.setStyleSheet(f"QWidget {{background-color:{top_bar_bg};}}")
+            self.top_bar.setStyleSheet(f"QWidget {{background-color:{top_bar_bg};font-family:{font_family};}}")
         
+        # Aplicar tipografía y colores al título
         if hasattr(self, 'title_label'):
-            self.title_label.setStyleSheet(f"color:{text_primary}; font-size:20px; font-weight:700; letter-spacing:.5px;")
+            title_font = QFont(font_family, title_size, QFont.Bold)
+            self.title_label.setFont(title_font)
+            self.title_label.setStyleSheet(f"color:{text_primary}; letter-spacing:.5px;")
         
+        # Aplicar tipografía a inputs
         if hasattr(self, 'search_input'):
+            search_font = QFont(font_family, secondary_size)
+            self.search_input.setFont(search_font)
             self.search_input.setStyleSheet(f"""
                 QLineEdit {{
                     background-color: {input_bg};
                     border: 1px solid {input_border};
-                    border-radius: 8px;
+                    border-radius: {button_radius}px;
                     padding: 10px 15px;
                     color: {text_primary};
-                    font-size: 14px;
                     min-width: 250px;
                     max-width: 400px;
                 }}
@@ -1762,14 +1788,15 @@ class GameLibrary(QMainWindow):
             """)
         
         if hasattr(self, 'view_combo'):
+            combo_font = QFont(font_family, secondary_size)
+            self.view_combo.setFont(combo_font)
             self.view_combo.setStyleSheet(f"""
                 QComboBox {{
                     background-color: {input_bg};
                     border: 1px solid {input_border};
-                    border-radius: 8px;
+                    border-radius: {button_radius}px;
                     padding: 10px 15px;
                     color: {text_primary};
-                    font-size: 14px;
                     min-width: 120px;
                 }}
                 QComboBox:hover {{
@@ -1788,15 +1815,16 @@ class GameLibrary(QMainWindow):
             """)
         
         if hasattr(self, 'add_btn'):
+            btn_font = QFont(font_family, secondary_size, QFont.Bold)
+            self.add_btn.setFont(btn_font)
             self.add_btn.setStyleSheet(f"""
                 QPushButton {{
                     background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
                         stop:0 {accent_start}, stop:1 {accent_end});
                     color: white;
                     border: none;
-                    border-radius: 8px;
+                    border-radius: {button_radius}px;
                     padding: 12px 24px;
-                    font-size: 16px;
                     font-weight: bold;
                 }}
                 QPushButton:hover {{
@@ -1807,13 +1835,16 @@ class GameLibrary(QMainWindow):
             """)
         
         if hasattr(self, 'customize_btn'):
+            btn_font = QFont(font_family, secondary_size, QFont.Bold)
+            self.customize_btn.setFont(btn_font)
             self.customize_btn.setStyleSheet(f"""
                 QPushButton {{
-                    background:{input_bg}; color:{text_primary}; border:1px solid {input_border}; border-radius:8px; padding:10px 20px; font-weight:600;
+                    background:{input_bg}; color:{text_primary}; border:1px solid {input_border}; border-radius:{button_radius}px; padding:10px 20px;
                 }}
                 QPushButton:hover {{background:{card_hover_bg}; border-color:{accent_start};}}
             """)
         
+        # Actualizar estilos de GameCard con el nuevo espaciado
         GameCard._custom_colors = {
             'card_bg': card_bg,
             'card_border': card_border,
@@ -1822,8 +1853,20 @@ class GameLibrary(QMainWindow):
             'text_primary': text_primary,
             'text_secondary': text_secondary,
             'accent_start': accent_start,
-            'accent_end': accent_end
+            'accent_end': accent_end,
+            'card_radius': card_radius,
+            'card_padding': card_padding,
+            'button_radius': button_radius,
+            'border_width': border_width,
+            'font_family': font_family,
+            'title_size': title_size,
+            'card_title_size': card_title_size,
+            'secondary_size': secondary_size
         }
+        
+        # Recargar las tarjetas para aplicar nuevos estilos de espaciado
+        if hasattr(self, 'render_games'):
+            self.render_games()
 
     def load_theme(self):
         if self.theme_file.exists():
@@ -1837,7 +1880,8 @@ class GameLibrary(QMainWindow):
                 # Cargar tema completo (incluye colors, typography, spacing)
                 theme_data = data.get('theme')
                 if theme_data:
-                    self.color_scheme = {k: v for k, v in theme_data.items() if isinstance(v, str) and v.startswith('#')}
+                    # Copiar TODO el objeto tema (colores, tipografía, espaciado, gradientes)
+                    self.color_scheme = dict(theme_data)
                 else:
                     # Fallback a color_scheme para compatibilidad hacia atrás
                     self.color_scheme = data.get('color_scheme', {})
