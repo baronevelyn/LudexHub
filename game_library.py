@@ -819,22 +819,37 @@ class AddGameDialog(QDialog):
 
 
 class ColorPickerDialog(QDialog):
-    """Diálogo de configuración con pestañas para colores, fondo e idioma"""
+    """Diálogo de configuración con pestañas para colores, fondo, tipografía e idioma"""
     language_changed = pyqtSignal(str)  # Emite cuando cambia el idioma
     
-    def __init__(self, parent=None, current_bg='', current_opacity=0.15, color_scheme=None, current_bg_type='static'):
+    def __init__(self, parent=None, current_bg='', current_opacity=0.15, color_scheme=None, current_bg_type='static', current_theme=None):
         super().__init__(parent)
         self.setWindowTitle(t('dialog_settings'))
-        self.setFixedSize(850, 650)
+        self.setFixedSize(900, 700)
         self._current_bg = current_bg
         self._current_opacity = current_opacity
-        self._color_scheme = color_scheme or self.default_colors()
         self._current_bg_type = current_bg_type or 'static'
+        # Si se pasa un tema completo, usarlo; si no, construir desde color_scheme o defaults
+        if current_theme:
+            self._current_theme = current_theme.copy()
+        elif color_scheme:
+            # Migrar desde color_scheme antiguo + defaults para nuevos campos
+            base = self.default_theme()
+            base.update(color_scheme)
+            self._current_theme = base
+        else:
+            self._current_theme = self.default_theme()
+        # Mantener _color_scheme para compatibilidad (es un view de los colores del tema)
+        self._color_scheme = {k: v for k, v in self._current_theme.items() if isinstance(v, str) and v.startswith('#')}
         self._color_buttons = {}
+        self._font_controls = {}
+        self._spacing_controls = {}
         self.setup_ui()
 
-    def default_colors(self):
+    def default_theme(self):
+        """Retorna configuración de tema completo con colores, tipografía y espaciado"""
         return {
+            # Colores
             'bg_gradient_start': '#0f1419',
             'bg_gradient_end': '#1a1f2e',
             'top_bar_bg': '#121822',
@@ -847,8 +862,29 @@ class ColorPickerDialog(QDialog):
             'text_primary': '#e8eaed',
             'text_secondary': '#9aa0a6',
             'input_bg': '#1a1f2e',
-            'input_border': '#2d3748'
+            'input_border': '#2d3748',
+            # Tipografía
+            'font_family': 'Segoe UI',
+            'title_size': 18,
+            'card_title_size': 16,
+            'secondary_size': 13,
+            'font_weight_title': 700,
+            'font_weight_secondary': 600,
+            # Espaciado y bordes
+            'card_radius': 12,
+            'card_padding': 10,
+            'button_radius': 8,
+            'border_width': 2,
+            # Gradientes en cards
+            'card_gradient_enabled': False,
+            'card_gradient_start': '#1a1f2e',
+            'card_gradient_end': '#252d3d'
         }
+
+    def default_colors(self):
+        """Mantener para compatibilidad - devuelve solo colores"""
+        theme = self.default_theme()
+        return {k: v for k, v in theme.items() if k not in ['font_family', 'title_size', 'card_title_size', 'secondary_size', 'font_weight_title', 'font_weight_secondary', 'card_radius', 'card_padding', 'button_radius', 'border_width', 'card_gradient_enabled', 'card_gradient_start', 'card_gradient_end']}
 
     def preset_presets(self):
         """Retorna un diccionario con todos los presets de temas disponibles"""
@@ -981,6 +1017,8 @@ class ColorPickerDialog(QDialog):
         tabs.addTab(self.create_background_tab(), t('tab_background'))
         tabs.addTab(self.create_general_colors_tab(), t('tab_general_colors'))
         tabs.addTab(self.create_card_colors_tab(), t('tab_card_colors'))
+        tabs.addTab(self.create_typography_tab(), 'Typography')
+        tabs.addTab(self.create_spacing_tab(), 'Spacing & Layout')
         root.addWidget(tabs)
 
         # Buttons
@@ -1313,6 +1351,151 @@ class ColorPickerDialog(QDialog):
         layout.addWidget(scroll)
         return widget
 
+    def create_typography_tab(self):
+        """Tab para tipografía: font family, sizes, weights"""
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+        layout.setSpacing(16)
+        layout.setContentsMargins(24, 24, 24, 24)
+
+        # Font Family
+        layout.addWidget(QLabel('Font Family'))
+        font_combo = QComboBox()
+        font_combo.setStyleSheet("""
+            QComboBox { background:#252d3d; border:2px solid #2d3748; border-radius:8px; padding:8px; color:#e8eaed; min-width:150px; }
+            QComboBox:hover { border-color:#667eea; }
+            QComboBox::drop-down { border:none; }
+            QComboBox QAbstractItemView { background:#252d3d; border:1px solid #2d3748; color:#e8eaed; selection-background-color:#667eea; }
+        """)
+        fonts = ['Segoe UI', 'Arial', 'Calibri', 'Tahoma', 'Courier New', 'Georgia']
+        font_combo.addItems(fonts)
+        current_font = self._current_theme.get('font_family', 'Segoe UI')
+        idx = font_combo.findText(current_font)
+        if idx >= 0:
+            font_combo.setCurrentIndex(idx)
+        def on_font_change(idx):
+            self._current_theme['font_family'] = font_combo.currentText()
+        font_combo.currentIndexChanged.connect(on_font_change)
+        layout.addWidget(font_combo)
+
+        # Title Size
+        layout.addWidget(QLabel('Title Size (14-24px)'))
+        title_slider = QSlider(Qt.Horizontal)
+        title_slider.setMinimum(14)
+        title_slider.setMaximum(24)
+        title_slider.setValue(self._current_theme.get('title_size', 18))
+        title_label = QLabel(f"{title_slider.value()}px")
+        title_label.setStyleSheet('color:#9aa0a6;')
+        def on_title_change(v):
+            self._current_theme['title_size'] = v
+            title_label.setText(f"{v}px")
+        title_slider.valueChanged.connect(on_title_change)
+        layout.addWidget(title_slider)
+        layout.addWidget(title_label)
+
+        # Card Title Size
+        layout.addWidget(QLabel('Card Title Size (12-20px)'))
+        card_title_slider = QSlider(Qt.Horizontal)
+        card_title_slider.setMinimum(12)
+        card_title_slider.setMaximum(20)
+        card_title_slider.setValue(self._current_theme.get('card_title_size', 16))
+        card_title_label = QLabel(f"{card_title_slider.value()}px")
+        card_title_label.setStyleSheet('color:#9aa0a6;')
+        def on_card_title_change(v):
+            self._current_theme['card_title_size'] = v
+            card_title_label.setText(f"{v}px")
+        card_title_slider.valueChanged.connect(on_card_title_change)
+        layout.addWidget(card_title_slider)
+        layout.addWidget(card_title_label)
+
+        # Secondary Size
+        layout.addWidget(QLabel('Secondary Text Size (10-16px)'))
+        secondary_slider = QSlider(Qt.Horizontal)
+        secondary_slider.setMinimum(10)
+        secondary_slider.setMaximum(16)
+        secondary_slider.setValue(self._current_theme.get('secondary_size', 13))
+        secondary_label = QLabel(f"{secondary_slider.value()}px")
+        secondary_label.setStyleSheet('color:#9aa0a6;')
+        def on_secondary_change(v):
+            self._current_theme['secondary_size'] = v
+            secondary_label.setText(f"{v}px")
+        secondary_slider.valueChanged.connect(on_secondary_change)
+        layout.addWidget(secondary_slider)
+        layout.addWidget(secondary_label)
+
+        layout.addStretch()
+        return widget
+
+    def create_spacing_tab(self):
+        """Tab para espaciado: card radius, padding, border width"""
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+        layout.setSpacing(16)
+        layout.setContentsMargins(24, 24, 24, 24)
+
+        # Card Radius
+        layout.addWidget(QLabel('Card Border Radius (0-20px)'))
+        radius_slider = QSlider(Qt.Horizontal)
+        radius_slider.setMinimum(0)
+        radius_slider.setMaximum(20)
+        radius_slider.setValue(self._current_theme.get('card_radius', 12))
+        radius_label = QLabel(f"{radius_slider.value()}px")
+        radius_label.setStyleSheet('color:#9aa0a6;')
+        def on_radius_change(v):
+            self._current_theme['card_radius'] = v
+            radius_label.setText(f"{v}px")
+        radius_slider.valueChanged.connect(on_radius_change)
+        layout.addWidget(radius_slider)
+        layout.addWidget(radius_label)
+
+        # Card Padding
+        layout.addWidget(QLabel('Card Padding (4-20px)'))
+        padding_slider = QSlider(Qt.Horizontal)
+        padding_slider.setMinimum(4)
+        padding_slider.setMaximum(20)
+        padding_slider.setValue(self._current_theme.get('card_padding', 10))
+        padding_label = QLabel(f"{padding_slider.value()}px")
+        padding_label.setStyleSheet('color:#9aa0a6;')
+        def on_padding_change(v):
+            self._current_theme['card_padding'] = v
+            padding_label.setText(f"{v}px")
+        padding_slider.valueChanged.connect(on_padding_change)
+        layout.addWidget(padding_slider)
+        layout.addWidget(padding_label)
+
+        # Button Radius
+        layout.addWidget(QLabel('Button Border Radius (4-12px)'))
+        btn_radius_slider = QSlider(Qt.Horizontal)
+        btn_radius_slider.setMinimum(4)
+        btn_radius_slider.setMaximum(12)
+        btn_radius_slider.setValue(self._current_theme.get('button_radius', 8))
+        btn_radius_label = QLabel(f"{btn_radius_slider.value()}px")
+        btn_radius_label.setStyleSheet('color:#9aa0a6;')
+        def on_btn_radius_change(v):
+            self._current_theme['button_radius'] = v
+            btn_radius_label.setText(f"{v}px")
+        btn_radius_slider.valueChanged.connect(on_btn_radius_change)
+        layout.addWidget(btn_radius_slider)
+        layout.addWidget(btn_radius_label)
+
+        # Border Width
+        layout.addWidget(QLabel('Border Width (1-3px)'))
+        border_slider = QSlider(Qt.Horizontal)
+        border_slider.setMinimum(1)
+        border_slider.setMaximum(3)
+        border_slider.setValue(self._current_theme.get('border_width', 2))
+        border_label = QLabel(f"{border_slider.value()}px")
+        border_label.setStyleSheet('color:#9aa0a6;')
+        def on_border_change(v):
+            self._current_theme['border_width'] = v
+            border_label.setText(f"{v}px")
+        border_slider.valueChanged.connect(on_border_change)
+        layout.addWidget(border_slider)
+        layout.addWidget(border_label)
+
+        layout.addStretch()
+        return widget
+
     def create_color_button(self, key):
         from PyQt5.QtWidgets import QColorDialog
         color = self._color_scheme.get(key, '#000000')
@@ -1324,6 +1507,7 @@ class ColorPickerDialog(QDialog):
             if c.isValid():
                 hex_color = c.name()
                 self._color_scheme[key] = hex_color
+                self._current_theme[key] = hex_color
                 btn.setText(hex_color)
                 btn.setStyleSheet(f"QPushButton#colorBtn {{ background:{hex_color}; color:white; border:2px solid #667eea; }}")
         btn.clicked.connect(pick)
@@ -1359,7 +1543,8 @@ class ColorPickerDialog(QDialog):
             'background_image': self.bg_input.text().strip(),
             'background_type': self.bg_type_combo.currentData(),
             'background_opacity': round(self.opacity_slider.value()/100.0, 3),
-            'color_scheme': self._color_scheme
+            'color_scheme': self._color_scheme,
+            'theme': self._current_theme  # Retornar tema completo con tipografía y espaciado
         }
 
     def apply_history(self, history_list):
@@ -1648,7 +1833,15 @@ class GameLibrary(QMainWindow):
                 self.bg_type = data.get('background_type', 'static')  # static, animated, video
                 self.bg_opacity = float(data.get('background_opacity', self.bg_opacity))
                 self.bg_history = list(data.get('background_history', []) or [])
-                self.color_scheme = data.get('color_scheme', {})
+                
+                # Cargar tema completo (incluye colors, typography, spacing)
+                theme_data = data.get('theme')
+                if theme_data:
+                    self.color_scheme = {k: v for k, v in theme_data.items() if isinstance(v, str) and v.startswith('#')}
+                else:
+                    # Fallback a color_scheme para compatibilidad hacia atrás
+                    self.color_scheme = data.get('color_scheme', {})
+                
                 self.playtime_tracking_enabled = bool(data.get('playtime_tracking_enabled', self.playtime_tracking_enabled))
                 self.custom_folders = list(data.get('custom_folders', []) or [])
                 self.folder_icons = dict(data.get('folder_icons', {}) or {})
@@ -1798,7 +1991,7 @@ class GameLibrary(QMainWindow):
         self.bg_pixmap = QPixmap.fromImage(img)
         self.update()
 
-    def save_theme(self, background_image, background_opacity, color_scheme=None, background_type='static'):
+    def save_theme(self, background_image, background_opacity, color_scheme=None, background_type='static', theme=None):
         # Actualizar historial (máx 8, sin duplicados, vacío si no hay imagen)
         new_hist = list(self.bg_history or [])
         if background_image:
@@ -1826,6 +2019,7 @@ class GameLibrary(QMainWindow):
             'background_opacity': background_opacity,
             'background_history': new_hist,
             'color_scheme': color_scheme or {},
+            'theme': theme or {},  # Guardar tema completo
             'custom_folders': self.custom_folders,
             'folder_icons': self.folder_icons,
             'last_folder': self.active_folder,
@@ -1894,12 +2088,14 @@ class GameLibrary(QMainWindow):
                 json.dump([], open(self.data_file, 'w', encoding='utf-8'))
             # Crear theme.json por defecto si no existe
             if not self.theme_file.exists():
+                dialog = ColorPickerDialog(None)
                 json.dump({
                     'background_image': '',
                     'background_type': 'static',
                     'background_opacity': 0.15,
                     'background_history': [],
-                    'color_scheme': ColorPickerDialog(None).default_colors(),
+                    'color_scheme': dialog.default_colors(),
+                    'theme': dialog.default_theme(),  # Guardar tema completo
                     'startup_on_boot': False,
                     'startup_on_boot_decided': False,
                     'language': 'en',
@@ -2981,14 +3177,16 @@ class GameLibrary(QMainWindow):
 
     def open_settings(self):
         bg = ''
+        current_theme = None
         if self.theme_file.exists():
             try:
                 with open(self.theme_file, 'r', encoding='utf-8') as f:
                     data = json.load(f)
                     bg = data.get('background_image', '') or ''
+                    current_theme = data.get('theme')  # Cargar tema completo si existe
             except Exception:
                 pass
-        dlg = ColorPickerDialog(self, current_bg=bg, current_opacity=self.bg_opacity, color_scheme=self.color_scheme, current_bg_type=self.bg_type)
+        dlg = ColorPickerDialog(self, current_bg=bg, current_opacity=self.bg_opacity, color_scheme=self.color_scheme, current_bg_type=self.bg_type, current_theme=current_theme)
         # Conectar señal de cambio de idioma para recargar UI
         dlg.language_changed.connect(self.reload_ui_text)
         try:
@@ -2997,7 +3195,8 @@ class GameLibrary(QMainWindow):
             pass
         if dlg.exec_() == QDialog.Accepted:
             data = dlg.get_data()
-            self.save_theme(data['background_image'], data['background_opacity'], data.get('color_scheme'), data.get('background_type', 'static'))
+            self.save_theme(data['background_image'], data['background_opacity'], data.get('color_scheme'), data.get('background_type', 'static'), data.get('theme'))
+
         
     def reload_ui_text(self, lang=None):
         """Recarga todos los strings de la UI cuando cambia el idioma"""
