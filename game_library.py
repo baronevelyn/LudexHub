@@ -13,7 +13,7 @@ from i18n import I18n, t
 from font_installer import ensure_fonts_installed
 
 # Version and application info
-__version__ = "1.1.4"
+__version__ = "1.1.5"
 __editor__ = "CallMeEden"
 from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
                              QHBoxLayout, QGridLayout, QPushButton, QLabel, 
