@@ -238,8 +238,16 @@ class AutoUpdater:
             True if installation initiated, False otherwise
         """
         try:
-            current_exe = Path(__file__).parent / "LudexHub.exe"
-            backup_exe = Path(__file__).parent / "LudexHub.exe.backup"
+            import sys
+            # Get the actual executable path (works with PyInstaller)
+            if getattr(sys, 'frozen', False):
+                # Running as compiled executable
+                current_exe = Path(sys.executable)
+            else:
+                # Running as script
+                current_exe = Path(__file__).parent / "LudexHub.exe"
+            
+            backup_exe = current_exe.parent / f"{current_exe.stem}.backup{current_exe.suffix}"
             
             # Create backup
             if current_exe.exists():
