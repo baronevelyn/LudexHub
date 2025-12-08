@@ -13,7 +13,7 @@ from i18n import I18n, t
 from font_installer import ensure_fonts_installed
 
 # Version and application info
-__version__ = "1.1.1"
+__version__ = "1.1.3"
 __editor__ = "CallMeEden"
 from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
                              QHBoxLayout, QGridLayout, QPushButton, QLabel, 
@@ -27,6 +27,49 @@ try:
 except Exception:
     QtWin = None
 from PyQt5.QtGui import QPixmap, QIcon, QPalette, QColor, QFont, QPainter, QBrush, QMovie, QImage
+
+
+class SingleInstanceLock:
+    """Previene múltiples instancias de la aplicación"""
+    
+    def __init__(self, app_name="LudexHub"):
+        self.app_name = app_name
+        self.lock_file = Path.home() / '.ludexhub_lock'
+        self.locked = False
+    
+    def acquire(self) -> bool:
+        """Intenta adquirir el lock. Retorna True si es la única instancia"""
+        try:
+            # Si el archivo existe, ya hay una instancia
+            if self.lock_file.exists():
+                try:
+                    # Intentar leer el PID anterior
+                    old_pid = int(self.lock_file.read_text().strip())
+                    # Si el proceso no existe, puede ser un lock antiguo
+                    import psutil
+                    if not psutil.pid_exists(old_pid):
+                        self.lock_file.unlink()
+                    else:
+                        return False  # Proceso existe, no adquirir lock
+                except:
+                    pass
+            
+            # Crear lock con PID actual
+            self.lock_file.write_text(str(os.getpid()))
+            self.locked = True
+            return True
+        except Exception as e:
+            print(f"Error adquiriendo lock: {e}")
+            return True  # Permitir continuar si hay error
+    
+    def release(self):
+        """Libera el lock"""
+        try:
+            if self.lock_file.exists() and self.locked:
+                self.lock_file.unlink()
+                self.locked = False
+        except Exception:
+            pass
 
 
 class ImageLoader(QThread):
@@ -2420,12 +2463,45 @@ class ColorPickerDialog(QDialog):
             thumb.setObjectName('secondary')
             thumb.setCheckable(False)
             thumb.setFixedSize(150, 100)
-            pm = QPixmap(path)
+            
+            # Intentar cargar thumbnail
+            pm = None
+            lower_path = path.lower()
+            
+            # Si es video, extraer frame aleatorio
+            if lower_path.endswith(('.mp4', '.webm', '.mkv', '.mov', '.avi')):
+                try:
+                    import cv2
+                    import random
+                    cap = cv2.VideoCapture(path)
+                    if cap.isOpened():
+                        frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+                        if frame_count > 0:
+                            # Obtener frame aleatorio
+                            random_frame = random.randint(0, frame_count - 1)
+                            cap.set(cv2.CAP_PROP_POS_FRAMES, random_frame)
+                            ret, frame = cap.read()
+                            if ret:
+                                # Convertir BGR a RGB
+                                frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                                h, w, ch = frame_rgb.shape
+                                bytes_per_line = 3 * w
+                                qt_image = QImage(frame_rgb.data, w, h, bytes_per_line, QImage.Format_RGB888)
+                                pm = QPixmap.fromImage(qt_image)
+                        cap.release()
+                except Exception as e:
+                    print(f"Error extrayendo frame de video {path}: {e}")
+            
+            # Si no es video o falló, intentar como imagen normal
+            if pm is None:
+                pm = QPixmap(path)
+            
             if not pm.isNull():
                 scaled = pm.scaled(150, 100, Qt.KeepAspectRatioByExpanding, Qt.SmoothTransformation)
                 icon = QIcon(scaled)
                 thumb.setIcon(icon)
                 thumb.setIconSize(QSize(150,100))
+            
             thumb.setToolTip(path)
             def make_handler(p=path):
                 def handler():
@@ -5412,10 +5488,21 @@ def main():
     palette.setColor(QPalette.ButtonText, QColor(232, 234, 237))
     app.setPalette(palette)
     
+    # Verificar si ya hay una instancia ejecutándose
+    lock = SingleInstanceLock()
+    if not lock.acquire():
+        # Ya hay una instancia ejecutándose
+        QMessageBox.warning(None, t('app_title') if hasattr(sys.modules.get('i18n'), 't') else 'LudexHub', 
+                          'La aplicación ya está ejecutándose.')
+        sys.exit(1)
+    
     window = GameLibrary()
     window.show()
     
-    sys.exit(app.exec_())
+    try:
+        sys.exit(app.exec_())
+    finally:
+        lock.release()
 
 
 if __name__ == '__main__':
