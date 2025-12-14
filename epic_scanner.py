@@ -344,18 +344,40 @@ class EpicScanner:
                 if p.exists():
                     for ext in ('*.jpg','*.jpeg','*.png'):
                         candidates.extend(list(p.rglob(ext)))
-            # Carpeta de instalación del juego
+            
+            # Carpeta de instalación del juego - CON LIMITACIONES
             install_location = Path(game_data.get('install_location',''))
             if install_location.exists():
-                for ext in ('*.jpg','*.jpeg','*.png'):
-                    # limitar profundidad para rendimiento
-                    for fp in install_location.rglob(ext):
-                        # ignorar archivos minúsculos (iconos)
-                        try:
-                            if fp.stat().st_size > 50_000:
-                                candidates.append(fp)
-                        except Exception:
-                            continue
+                # Carpetas que causan congelamiento (ej: Unreal Engine tiene miles de archivos)
+                skip_dirs = {
+                    'binaries', 'intermediate', 'source', 'build', 'temp',
+                    'cache', 'saved', '.vs', '__pycache__', 'node_modules',
+                    '.git', '.svn', 'dist', 'obj', 'debug', 'release'
+                }
+                
+                def _safe_search(root: Path, max_depth: int = 3, current_depth: int = 0) -> List[Path]:
+                    """Búsqueda limitada para no congelarse en carpetas grandes"""
+                    results = []
+                    if current_depth >= max_depth:
+                        return results
+                    try:
+                        for item in root.iterdir():
+                            # Saltarse carpetas peligrosas
+                            if item.is_dir() and item.name.lower() in skip_dirs:
+                                continue
+                            if item.is_file() and item.suffix.lower() in ('.jpg', '.jpeg', '.png'):
+                                try:
+                                    if item.stat().st_size > 50_000:
+                                        results.append(item)
+                                except Exception:
+                                    pass
+                            elif item.is_dir():
+                                results.extend(_safe_search(item, max_depth, current_depth + 1))
+                    except (PermissionError, OSError):
+                        pass
+                    return results
+                
+                candidates.extend(_safe_search(install_location, max_depth=3))
             # Heurística por nombre
             name_hints = ['cover','splash','header','art','poster','box','wide']
             scored: List[tuple[int, Path]] = []
